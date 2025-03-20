@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TiddelipomPLayer</title>
+  <title>TiddelipomPlayer</title>
+  <link rel="stylesheet" href="popup.css">
   <style>
     /* Basic page layout - Sets up scrollable container with space for fixed player at bottom */
     body { 
@@ -338,25 +339,19 @@
   </style>
 </head>
 <body>
-  <div class="input-group">
-    <input type="text" id="rssInput" placeholder="Enter RSS feed URL">
-    <button id="addRss">Add Feed</button>
-  </div>
   <div class="limit-control">
-    <label for="audioLimit">Max episodes:</label>
-    <input type="number" id="audioLimit" min="1" value="3">
     <div class="config-buttons">
       <button id="configButton" class="config-btn" title="Open configuration">Configuration</button>
     </div>
   </div>
-  <h3>Feeds</h3>
-  <ul id="rssList"></ul>
   
   <div id="audioList"></div>
-  <div id="playerContainer">
-    <div id="nowPlaying"></div>
+  
+  <div class="player-container">
     <audio id="player" controls></audio>
+    <div id="nowPlaying"></div>
   </div>
+  
   <script src="popup.js"></script>
 </body>
 </html>

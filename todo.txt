@@ -1,6 +1,9 @@
-- create help page that launches from extension
+- player loogs (more info on feeder line)
+- visual indicator that where the play is when stopped
+- create help page
 - sync config on drive
 - support audio clips
+- create "current-config" maybe with timestamp
 - restart player from start
 - migrate from iother players
 - When loading an RSS feed, create an indicator that the RSS is loading 

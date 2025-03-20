@@ -3,6 +3,29 @@ document.addEventListener('DOMContentLoaded', () => {
   const importButton = document.getElementById('importConfig');
   const exportStatus = document.getElementById('exportStatus');
   const importStatus = document.getElementById('importStatus');
+  const audioLimit = document.getElementById('audioLimit');
+  const limitStatus = document.getElementById('limitStatus');
+
+  // Load current max episodes setting
+  chrome.storage.local.get('audioLimit', (data) => {
+    if (data.audioLimit) {
+      audioLimit.value = data.audioLimit;
+    }
+  });
+
+  // Handle max episodes changes
+  audioLimit.addEventListener('change', async () => {
+    const limit = parseInt(audioLimit.value);
+    if (limit >= 1) {
+      await chrome.storage.local.set({ audioLimit: limit });
+      showStatus(limitStatus, 'Maximum episodes setting saved!', 'success');
+      
+      // Notify the popup to refresh
+      chrome.runtime.sendMessage({ type: 'configImported' });
+    } else {
+      showStatus(limitStatus, 'Please enter a number greater than 0', 'error');
+    }
+  });
 
   // Handle configuration export
   exportButton.addEventListener('click', async () => {
@@ -56,6 +79,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!config.version || !config.feeds) {
           throw new Error('Invalid configuration file format');
         }
+
+        // Clear all existing configuration first
+        await chrome.storage.local.clear();
 
         // Extract and save feeds
         const feeds = config.feeds.map(feed => feed.url);
