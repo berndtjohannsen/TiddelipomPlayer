@@ -45,16 +45,39 @@ function initializePopup() {
     }
 
     // Initialize only in the persistent window
+    const channelList = document.getElementById('channelList');
     const audioList = document.getElementById('audioList');
     const player = document.getElementById('player');
     const nowPlaying = document.getElementById('nowPlaying');
     let savePositionInterval;
 
+    // Initialize section toggle behavior
+    function initializeSectionToggles() {
+      const sections = document.querySelectorAll('.section');
+      sections.forEach(section => {
+        const header = section.querySelector('.section-header');
+        const content = section.querySelector('.section-content');
+        const toggleIcon = header.querySelector('.toggle-icon');
+
+        header.addEventListener('click', () => {
+          content.style.display = content.style.display === 'none' ? 'block' : 'none';
+          toggleIcon.textContent = content.style.display === 'none' ? '▶' : '▼';
+          toggleIcon.style.transform = content.style.display === 'none' ? 'rotate(-90deg)' : 'rotate(0)';
+        });
+      });
+    }
+
+    // Initialize sections
+    initializeSectionToggles();
+
     // Listen for configuration import
     chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       if (message.type === 'configImported') {
         // Clear existing UI
-        audioList.innerHTML = '';
+        const podContent = audioList.querySelector('.section-content');
+        if (podContent) {
+          podContent.innerHTML = '';
+        }
         
         // Reload feeds from storage
         chrome.storage.local.get('feeds', (data) => {
@@ -267,7 +290,12 @@ function initializePopup() {
 
     // Fetch and parse feeds
     async function parseFeeds(feeds) {
-      audioList.innerHTML = '';
+      const podContent = audioList.querySelector('.section-content');
+      if (!podContent) {
+        console.error('Could not find pod section content');
+        return;
+      }
+      podContent.innerHTML = '';
       
       for (const feedUrl of feeds) {
         const result = await tryParseRss(feedUrl);
@@ -334,7 +362,7 @@ function initializePopup() {
           toggleIcon.textContent = separator.classList.contains('collapsed') ? '▶' : '▼';
         });
 
-        audioList.appendChild(feedContainer);
+        podContent.appendChild(feedContainer);
 
         // Get the number of episodes to show
         const limit = await new Promise(resolve => {

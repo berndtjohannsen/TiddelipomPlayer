@@ -336,6 +336,27 @@
     #player {
       width: 100%;
     }
+
+    /* New styles for channel and podcast sections */
+    .section {
+      margin-bottom: 15px;
+    }
+    .section-header {
+      display: flex;
+      align-items: center;
+      padding: 5px 0;
+      border-bottom: 1px solid #ddd;
+      font-weight: bold;
+      color: #333;
+    }
+    .toggle-icon {
+      margin-right: 8px;
+      font-size: 12px;
+      transition: transform 0.2s;
+    }
+    .section-content {
+      padding-top: 5px;
+    }
   </style>
 </head>
 <body>
@@ -344,8 +365,22 @@
       <button id="configButton" class="config-btn" title="Open configuration">Configuration</button>
     </div>
   </div>
+
+  <div id="channelList" class="section">
+    <div class="section-header">
+      <span class="toggle-icon">▼</span>
+      <span>Channels</span>
+    </div>
+    <div class="section-content"></div>
+  </div>
   
-  <div id="audioList"></div>
+  <div id="audioList" class="section">
+    <div class="section-header">
+      <span class="toggle-icon">▼</span>
+      <span>Pods</span>
+    </div>
+    <div class="section-content"></div>
+  </div>
   
   <div class="player-container">
     <audio id="player" controls></audio>
