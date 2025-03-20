@@ -18,7 +18,7 @@
 . when showing feeds show total number and last update
 - automatic feed update, when starting, once every hour
 - is there a common format for pod data?
-
+- the player window is sometimes too big (if the number of pods are few)
 
 update configuration
 - feeds
