@@ -1,19 +1,31 @@
-
-- somehow make a feature so that the plugin can read from the current page.
-IF there are audio files there, consider it a "Web feed". IF it is an RSS page or the page 
-contains the link to an RSS, use that RSS. 
+- create help page that launches from extension
+- sync config on drive
+- support audio clips
+- restart player from start
+- migrate from iother players
 - When loading an RSS feed, create an indicator that the RSS is loading 
-- Make it possible to manually enter a "Web feed"
+- Make it possible to manually enter an audio clip
 - sort the feeds
 - split CSS to a separate file
-Right now, I would like to continue the RSS approach, but we may add some other mechanism in the future. The next feature I would like is a way to download and upload the current config. Essentially a list of Feeds. The config format should be prepared to add more information, for example which episodes has been played.
 - access to RSS catalog
-- bug player windows does not show scroll bar although the content is bigger than the window
 - support for M3U links (for channels)
 - See this: https://feedsearch.dev/api/v1/search?result=true&url=sverigesradio.se
 - or this: https://gpodder.net/directory/
-- image icon per feed?
-- maybe just tell the user where to go to find RSS:es?
+- when searching pods, before adding state last update date and maybe number of pod
+. when showing feeds show total number and last update
+- automatic feed update, when starting, once every hour
+- is there a common format for pod data?
+
+
+update configuration
+- feeds
+  RSS-links
+
+
+- number of feeds tp show
+- synch data
+- RSS check intervasl (default, when start and 1/hour)
+
 
 
 works
