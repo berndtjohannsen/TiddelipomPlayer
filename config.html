@@ -55,11 +55,106 @@
       background-color: #ffebee;
       color: #c62828;
     }
+    .setting-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 15px;
+    }
+    .setting-group label {
+      flex: 1;
+    }
+    .setting-group input {
+      width: 80px;
+      padding: 5px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+    .input-group {
+      display: flex;
+      gap: 10px;
+      margin-top: 15px;
+    }
+    /* Feed list styles */
+    .feed-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px;
+      border: 1px solid #eee;
+      border-radius: 4px;
+      margin-bottom: 10px;
+    }
+    .feed-info {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .feed-title {
+      font-weight: bold;
+      color: #333;
+    }
+    .feed-details {
+      font-size: 0.8em;
+      color: #666;
+      display: flex;
+      gap: 10px;
+    }
+    .feed-url {
+      color: #1976d2;
+      text-overflow: ellipsis;
+      overflow: hidden;
+    }
+    .feed-episodes {
+      color: #666;
+    }
+    .feed-controls {
+      display: flex;
+      gap: 5px;
+    }
+    .feed-control-btn {
+      background: none;
+      border: 1px solid #ccc;
+      border-radius: 3px;
+      padding: 2px 8px;
+      cursor: pointer;
+      font-size: 0.9em;
+    }
+    .feed-control-btn:hover {
+      background-color: #f0f0f0;
+    }
+    .feed-control-btn.remove {
+      color: #827c9b;
+    }
+    .feed-control-btn.refresh {
+      color: #1976d2;
+    }
+    .feed-error {
+      color: #d32f2f;
+      font-size: 0.85em;
+      margin: 2px 0;
+      padding: 4px 8px;
+      background-color: #ffebee;
+      border-radius: 3px;
+      display: none;
+    }
   </style>
 </head>
 <body>
   <h1>TiddelipomPlayer Configuration</h1>
   
+  <div class="section">
+    <h2>Feed Management</h2>
+    <p>Add and manage your RSS feed URLs.</p>
+    <div class="input-group">
+      <input type="text" id="rssInput" placeholder="Enter RSS feed URL">
+      <button id="addRss">Add Feed</button>
+    </div>
+    <div id="feedList"></div>
+    <div id="feedStatus" class="status"></div>
+  </div>
+
   <div class="section">
     <h2>Export Configuration</h2>
     <p>Export your current configuration to a JSON file. This includes your feeds, playback positions, and settings.</p>
@@ -78,6 +173,17 @@
     <div id="importStatus" class="status"></div>
   </div>
 
+  <div class="section">
+    <h2>Episode Settings</h2>
+    <p>Configure how many episodes to display for each feed.</p>
+    <div class="setting-group">
+      <label for="audioLimit">Maximum episodes per feed:</label>
+      <input type="number" id="audioLimit" min="1" value="3">
+    </div>
+    <div id="limitStatus" class="status"></div>
+  </div>
+
+  <script src="feed-manager.js"></script>
   <script src="config.js"></script>
 </body>
 </html> 
