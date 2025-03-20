@@ -19,6 +19,7 @@
 - is there a common format for pod data?
 - the player window is sometimes too big (if the number of pods are few)
 - link to dircotry sevices in the configuration page
+- ljudböcker
 
 update configuration
 - feeds
