@@ -64,8 +64,8 @@ function initializePopup() {
           // Notify config page to update its feed list
           chrome.runtime.sendMessage({ type: 'configUpdated' });
         });
-      } else if (message.type === 'feedRemoved') {
-        // Reload feeds from storage after removal
+      } else if (message.type === 'feedRemoved' || message.type === 'feedAdded') {
+        // Reload feeds from storage after removal or addition
         chrome.storage.local.get('feeds', (data) => {
           const feeds = data.feeds || [];
           parseFeeds(feeds);

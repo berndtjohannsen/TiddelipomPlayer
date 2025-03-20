@@ -158,6 +158,8 @@ document.addEventListener('DOMContentLoaded', () => {
           addFeedToUI(feedUrl);
           showStatus('Feed added successfully!', 'success');
           rssInput.value = '';
+          // Notify the player window that a feed was added
+          chrome.runtime.sendMessage({ type: 'feedAdded' });
         });
       } else {
         showStatus('This feed is already added.', 'error');
