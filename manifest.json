@@ -27,7 +27,7 @@
     "service_worker": "background.js"
   },
   "web_accessible_resources": [{
-    "resources": ["popup.html", "player.html"],
+    "resources": ["popup.html", "player.html", "config.html"],
     "matches": ["<all_urls>"]
   }]
 }

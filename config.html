@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TiddelipomPlayer Configuration</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 20px auto;
+      padding: 20px;
+    }
+    .section {
+      margin-bottom: 30px;
+      padding: 20px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+    h1 {
+      color: #1976d2;
+      margin-bottom: 20px;
+    }
+    h2 {
+      color: #333;
+      margin-bottom: 15px;
+    }
+    .button-group {
+      display: flex;
+      gap: 10px;
+      margin-top: 15px;
+    }
+    button {
+      padding: 8px 16px;
+      background-color: #1976d2;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #1565c0;
+    }
+    .status {
+      margin-top: 10px;
+      padding: 10px;
+      border-radius: 4px;
+      display: none;
+    }
+    .success {
+      background-color: #e8f5e9;
+      color: #2e7d32;
+    }
+    .error {
+      background-color: #ffebee;
+      color: #c62828;
+    }
+  </style>
+</head>
+<body>
+  <h1>TiddelipomPlayer Configuration</h1>
+  
+  <div class="section">
+    <h2>Export Configuration</h2>
+    <p>Export your current configuration to a JSON file. This includes your feeds, playback positions, and settings.</p>
+    <div class="button-group">
+      <button id="exportConfig">Export Configuration</button>
+    </div>
+    <div id="exportStatus" class="status"></div>
+  </div>
+
+  <div class="section">
+    <h2>Import Configuration</h2>
+    <p>Import a previously exported configuration file to restore your settings.</p>
+    <div class="button-group">
+      <button id="importConfig">Import Configuration</button>
+    </div>
+    <div id="importStatus" class="status"></div>
+  </div>
+
+  <script src="config.js"></script>
+</body>
+</html> 
