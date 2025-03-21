@@ -1,76 +1,70 @@
-/* Base window layout - these styles apply to BOTH standalone and extension */
-html, body {
-  margin: 0;
-  padding: 0;
-  min-width: 0;
-  width: 100%;
+/* Base layout - exactly matching extension popup */
+html {
+  width: 450px;
 }
 
 body {
+  width: 450px;
+  margin: 0;
+  padding: 10px;
+  padding-bottom: 120px;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   font-size: 75%;
   line-height: 1.4;
   color: #303030;
   background: white;
-  display: flex;
-  justify-content: center;
-  min-width: 0;
-}
-
-.popup-container {
-  width: 450px;
-  padding: 10px;
-  box-sizing: border-box;
-  min-width: 0;
-  position: relative;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
 }
 
 /* Fixed player at bottom */
 .player-container {
-  position: sticky;
+  position: fixed;
   bottom: 0;
+  left: 0;
+  right: 0;
   background: white;
   padding: 10px;
   border-top: 1px solid #ddd;
   z-index: 1000;
-  min-width: 0;
-  box-sizing: border-box;
-  margin-top: auto;
-  width: 100%;
+  width: 430px;
 }
 
-/* Force audio player to respect container width */
+/* Player wrapper to force clipping */
+.player-wrapper {
+  width: 430px;
+  max-width: 430px;
+  overflow: hidden;
+  position: relative;
+}
+
+/* Force audio player to fit */
 #player {
-  width: 100% !important;
+  width: 430px !important;
+  max-width: 430px !important;
   min-width: 0 !important;
-  max-width: 100% !important;
+  margin-bottom: 5px;
+  display: block;
 }
 
-/* Override default audio player styles */
-audio {
-  width: 100% !important;
+/* Target audio element and its shadow DOM */
+audio::-webkit-media-controls-panel,
+audio::-webkit-media-controls-enclosure,
+audio::-webkit-media-controls,
+audio::-webkit-media-controls-timeline-container,
+audio::-webkit-media-controls-current-time-display,
+audio::-webkit-media-controls-time-remaining-display,
+audio::-webkit-media-controls-timeline,
+audio::-webkit-media-controls-volume-slider-container,
+audio::-webkit-media-controls-volume-slider,
+audio::-webkit-media-controls-seek-back-button,
+audio::-webkit-media-controls-seek-forward-button,
+audio::-webkit-media-controls-fullscreen-button,
+audio::-webkit-media-controls-rewind-button,
+audio::-webkit-media-controls-return-to-realtime-button,
+audio::-webkit-media-controls-toggle-closed-captions-button {
+  width: inherit !important;
+  max-width: 430px !important;
   min-width: 0 !important;
-  max-width: 100% !important;
-}
-
-/* Standalone mode - ONLY visual presentation differences */
-@media not all and (chrome-extension-popup) {
-  html {
-    min-height: 100%;
-    background: #f5f5f5;
-  }
-
-  .popup-container {
-    margin: 20px auto;
-    border-radius: 8px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-    background: white;
-    max-width: calc(100vw - 40px);
-    width: min(450px, 100%);
-  }
+  flex: 0 1 430px !important;
 }
 
 /* Main sections (Channels, Pod) 
@@ -134,11 +128,7 @@ audio {
   margin-left: 0;  /* Adjust for feed content indentation */
 }
 
-/* Episode grid layout
- * grid-template-columns: controls width of play button, content, and checkbox
- * gap: controls spacing between columns
- * padding: controls row height
- */
+/* Episode grid layout */
 .episode-header, .audio-item {
   display: grid;
   grid-template-columns: 20px minmax(100px, auto) 30px;  /* Play | Content | Checkbox widths */
@@ -146,20 +136,17 @@ audio {
   padding: 4px 0;  /* Vertical padding - affects row height */
   border-bottom: 1px solid #eee;
   align-items: center;
+  min-height: 28px;
 }
 
-/* Checkbox column alignment
- * padding-right: space before window edge
- */
+/* Checkbox column alignment */
 .audio-item > :last-child,
 .episode-header > :last-child {
   text-align: right;
   padding-right: 2px;  /* Space before window edge */
 }
 
-/* Episode content area
- * padding-left/right: spacing around content
- */
+/* Episode content area */
 .audio-content {
   overflow: hidden;
   padding-right: 2px;  /* Space before checkbox */
@@ -168,17 +155,14 @@ audio {
   white-space: normal;
 }
 
-/* Play/checkbox controls
- * width/height: control size
- * justify-content: controls horizontal position
- */
+/* Play/checkbox controls */
 .audio-control {
   background: none;
   border: none;
   cursor: pointer;
   padding: 0;
   font-size: 1.2em;
-  color: #1976d2;
+  color: #444;
   width: 18px;   /* Control size */
   height: 18px;  /* Control size */
   display: flex;
@@ -187,18 +171,64 @@ audio {
   margin: 0;
 }
 
-/* Checkbox specific styles
- * justify-content: controls checkbox position
- */
-.audio-control.mark-played {
-  font-size: 1.2em;
-  width: 18px;
-  height: 18px;
+/* Feed headers */
+.podcast-separator {
   display: flex;
   align-items: center;
-  justify-content: center;  /* Center checkbox */
-  padding: 0;
-  margin: 0;
+  padding: 4px 2px;
+  background-color: #f8f9fa;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-bottom: 2px;
+  font-weight: bold;
+}
+
+.podcast-separator:hover {
+  background-color: #e9ecef;
+}
+
+.toggle-icon {
+  margin-right: 4px;
+  font-size: 0.8em;
+  transition: transform 0.2s;
+}
+
+/* Episode content styling */
+.audio-title {
+  font-weight: normal;
+  margin-bottom: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.audio-date {
+  font-size: 0.9em;
+  color: #666;
+}
+
+/* Played episode styling */
+.audio-item.played {
+  opacity: 0.6;
+}
+
+.audio-item.played .audio-title {
+  text-decoration: line-through;
+}
+
+/* Feed episodes container */
+.feed-episodes {
+  margin-bottom: 15px;
+}
+
+.feed-episodes.collapsed {
+  display: none;
+}
+
+/* Episode header styling */
+.episode-header {
+  font-weight: bold;
+  color: #666;
 }
 
 /* Configuration button styles */
@@ -235,32 +265,8 @@ audio {
   margin-bottom: 15px;
 }
 
-.podcast-separator {
-  display: flex;
-  align-items: center;
-  padding: 4px 2px;
-  background-color: #f8f9fa;
-  border-radius: 4px;
-  cursor: pointer;
-  margin-bottom: 2px;
-}
-
-.podcast-separator:hover {
-  background-color: #e9ecef;
-}
-
-.podcast-separator .toggle-icon {
-  margin-right: 4px;
-  font-size: 12px;
-  transition: transform 0.2s;
-}
-
 .podcast-separator.collapsed .toggle-icon {
   transform: rotate(-90deg);
-}
-
-.feed-episodes.collapsed {
-  display: none;
 }
 
 .episode-header {
