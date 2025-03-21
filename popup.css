@@ -1,40 +1,72 @@
-/* Add any missing styles from popup.html here */
+/* Base window layout - these styles apply to BOTH standalone and extension */
 body {
-  width: 400px;
+  width: 450px;
   margin: 0;
   padding: 10px;
-  padding-bottom: 120px; /* Space for fixed player */
+  padding-bottom: 120px;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: 75%;
+  line-height: 1.4;
+  color: #303030;
+  background: white;  /* Ensure white background in both modes */
 }
 
-/* Section styles */
+/* Standalone mode - ONLY visual presentation differences */
+@media not all and (chrome-extension-popup) {
+  html {
+    display: flex;
+    justify-content: center;
+    min-height: 100%;
+    background: #f5f5f5;
+  }
+  
+  body {
+    /* No changes to width/padding/font - only visual presentation */
+    min-height: 400px;
+    margin: 20px auto;  /* Center the fixed-width body */
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+  }
+}
+
+/* Main sections (Channels, Pod) 
+ * margin-bottom: space between sections
+ * padding-bottom: internal bottom spacing
+ */
 .section {
-  margin-bottom: 15px;
+  margin-bottom: 8px;  /* Adjust for more/less space between sections */
   border-bottom: 1px solid #eee;
-  padding-bottom: 10px;
+  padding-bottom: 8px;
 }
 
 .section:last-child {
   border-bottom: none;
 }
 
+/* Section headers (▼ Channels, ▼ Pod)
+ * padding: controls the header height and left spacing
+ */
 .section-header {
   display: flex;
   align-items: center;
-  padding: 8px;
+  padding: 4px 2px;  /* Vertical & horizontal padding - adjust for header height */
   background-color: #f8f9fa;
   border-radius: 4px;
   cursor: pointer;
   user-select: none;
+  font-size: 1.1em;  /* Slightly larger than body text */
 }
 
 .section-header:hover {
   background-color: #e9ecef;
 }
 
+/* Triangle icon in headers
+ * margin-right: space between triangle and text
+ */
 .section-header .toggle-icon {
-  margin-right: 8px;
-  font-size: 12px;
+  margin-right: 4px;
+  font-size: 0.8em;  /* Smaller than the header text */
   transition: transform 0.2s ease;
 }
 
@@ -43,21 +75,122 @@ body {
   color: #495057;
 }
 
+/* Section content wrapper
+ * padding: controls spacing around content
+ */
 .section-content {
-  padding: 8px 4px;
+  padding: 4px 0;  /* Vertical padding - adjust for spacing between items */
   transition: all 0.3s ease;
 }
 
-/* Player styles */
+/* Fixed player at bottom
+ * padding: controls player area spacing
+ */
 .player-container {
   position: fixed;
   bottom: 0;
   left: 0;
   right: 0;
   background: white;
-  padding: 10px;
+  padding: 10px 15px;  /* Adjust for player area spacing */
   border-top: 1px solid #ddd;
   z-index: 1000;
+}
+
+/* Feed container (podcast groups)
+ * margin-left: controls indentation of feed content
+ */
+.feed-episodes {
+  margin-left: 0;  /* Adjust for feed content indentation */
+}
+
+/* Episode grid layout
+ * grid-template-columns: controls width of play button, content, and checkbox
+ * gap: controls spacing between columns
+ * padding: controls row height
+ */
+.episode-header, .audio-item {
+  display: grid;
+  grid-template-columns: 20px minmax(100px, auto) 30px;  /* Play | Content | Checkbox widths */
+  gap: 0;  /* Space between columns */
+  padding: 4px 0;  /* Vertical padding - affects row height */
+  border-bottom: 1px solid #eee;
+  align-items: center;
+}
+
+/* Checkbox column alignment
+ * padding-right: space before window edge
+ */
+.audio-item > :last-child,
+.episode-header > :last-child {
+  text-align: right;
+  padding-right: 2px;  /* Space before window edge */
+}
+
+/* Episode content area
+ * padding-left/right: spacing around content
+ */
+.audio-content {
+  overflow: hidden;
+  padding-right: 2px;  /* Space before checkbox */
+  padding-left: 2px;   /* Space after play button */
+  min-width: 0;
+  white-space: normal;
+}
+
+/* Play/checkbox controls
+ * width/height: control size
+ * justify-content: controls horizontal position
+ */
+.audio-control {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  font-size: 1.2em;
+  color: #1976d2;
+  width: 18px;   /* Control size */
+  height: 18px;  /* Control size */
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;  /* Left-align play button */
+  margin: 0;
+}
+
+/* Checkbox specific styles
+ * justify-content: controls checkbox position
+ */
+.audio-control.mark-played {
+  font-size: 1.2em;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;  /* Center checkbox */
+  padding: 0;
+  margin: 0;
+}
+
+/* Configuration button styles */
+.config-buttons {
+  position: absolute;
+  top: -30px;
+  right: 10px;
+}
+
+.config-btn {
+  background-color: #1976d2;
+  color: white;
+  border: none;
+  padding: 5px 10px;
+  border-radius: 4px 4px 0 0;
+  cursor: pointer;
+  border: 1px solid #1565c0;
+  border-bottom: none;
+}
+
+.config-btn:hover {
+  background-color: #1565c0;
 }
 
 #player {
@@ -80,11 +213,11 @@ body {
 .podcast-separator {
   display: flex;
   align-items: center;
-  padding: 5px;
+  padding: 4px 2px;
   background-color: #f8f9fa;
   border-radius: 4px;
   cursor: pointer;
-  margin-bottom: 5px;
+  margin-bottom: 2px;
 }
 
 .podcast-separator:hover {
@@ -92,7 +225,7 @@ body {
 }
 
 .podcast-separator .toggle-icon {
-  margin-right: 8px;
+  margin-right: 4px;
   font-size: 12px;
   transition: transform 0.2s;
 }
@@ -101,19 +234,15 @@ body {
   transform: rotate(-90deg);
 }
 
-.feed-episodes {
-  margin-left: 15px;
-}
-
 .feed-episodes.collapsed {
   display: none;
 }
 
 .episode-header {
   display: grid;
-  grid-template-columns: 30px 1fr 30px;
-  gap: 10px;
-  padding: 5px;
+  grid-template-columns: 20px minmax(100px, auto) 30px;
+  gap: 0;
+  padding: 4px 0;
   border-bottom: 1px solid #eee;
   font-weight: bold;
   color: #666;
@@ -121,43 +250,45 @@ body {
 
 .audio-item {
   display: grid;
-  grid-template-columns: 30px 1fr 30px;
-  gap: 10px;
-  padding: 5px;
+  grid-template-columns: 20px minmax(100px, auto) 30px;
+  gap: 0;
+  padding: 4px 0;
   border-bottom: 1px solid #eee;
   align-items: center;
+  min-height: 28px;
 }
 
 .audio-item:hover {
   background-color: #f8f9fa;
 }
 
+.audio-item > :last-child,
+.episode-header > :last-child {
+  text-align: right;
+  padding-right: 2px;
+}
+
 .audio-content {
   overflow: hidden;
+  padding-right: 2px;
+  padding-left: 2px;
+  min-width: 0;
+  white-space: normal;
 }
 
 .audio-title {
   font-weight: 500;
   color: #333;
   margin-bottom: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .audio-date {
   font-size: 0.8em;
   color: #666;
-}
-
-.audio-control {
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 2px 5px;
-  font-size: 1.2em;
-  color: #1976d2;
-}
-
-.audio-control:hover {
-  color: #1565c0;
+  white-space: nowrap;
 }
 
 .audio-item.played {
@@ -166,25 +297,4 @@ body {
 
 .audio-item.played .audio-title {
   text-decoration: line-through;
-}
-
-/* Configuration button styles */
-.config-buttons {
-  display: flex;
-  justify-content: flex-end;
-  padding: 5px;
-  margin-bottom: 10px;
-}
-
-.config-btn {
-  background-color: #1976d2;
-  color: white;
-  border: none;
-  padding: 5px 10px;
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-.config-btn:hover {
-  background-color: #1565c0;
 } 
