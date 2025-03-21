@@ -2,35 +2,35 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <meta name="viewport" content="width=450">
   <title>TiddelipomPlayer</title>
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
-  <div class="popup-container">
-    <div id="channelList" class="section">
-      <div class="section-header">
-        <span class="toggle-icon">▼</span>
-        <span>Channels</span>
-      </div>
-      <div class="section-content"></div>
+  <div id="channelList" class="section">
+    <div class="section-header">
+      <span class="toggle-icon">▼</span>
+      <span>Channels</span>
     </div>
-    
-    <div id="audioList" class="section">
-      <div class="section-header">
-        <span class="toggle-icon">▼</span>
-        <span>Pod</span>
-      </div>
-      <div class="section-content"></div>
+    <div class="section-content"></div>
+  </div>
+  
+  <div id="audioList" class="section">
+    <div class="section-header">
+      <span class="toggle-icon">▼</span>
+      <span>Pod</span>
     </div>
+    <div class="section-content"></div>
+  </div>
 
-    <div class="player-container">
-      <div class="config-buttons">
-        <button id="configButton" class="config-btn" title="Open configuration">Configuration</button>
-      </div>
-      <audio id="player" controls></audio>
-      <div id="nowPlaying"></div>
+  <div class="player-container">
+    <div class="config-buttons">
+      <button id="configButton" class="config-btn" title="Open configuration">Configuration</button>
     </div>
+    <div class="player-wrapper">
+      <audio id="player" controls preload="none"></audio>
+    </div>
+    <div id="nowPlaying"></div>
   </div>
   
   <script src="popup.js"></script>
