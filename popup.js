@@ -229,10 +229,14 @@ function initializeStandaloneFeatures() {
     });
   }
 
-  // Hide the config button in standalone mode
+  // Add dummy click handler for config button in standalone mode
   const configButton = document.getElementById('configButton');
   if (configButton) {
-    configButton.style.display = 'none';
+    configButton.addEventListener('click', () => {
+      // Just for visual feedback in standalone mode
+      configButton.classList.add('clicked');
+      setTimeout(() => configButton.classList.remove('clicked'), 200);
+    });
   }
 
   // Basic audio player functionality
