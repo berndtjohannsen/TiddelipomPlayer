@@ -25,6 +25,7 @@
 . version number (name) configurations
 - max xhannels to show
 - test invalid entries
+- spotify
 
 update configuration
 - feeds

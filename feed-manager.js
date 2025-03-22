@@ -64,10 +64,8 @@ document.addEventListener('DOMContentLoaded', () => {
     refreshBtn.textContent = '↻';
     refreshBtn.title = 'Refresh feed';
     refreshBtn.addEventListener('click', () => {
-      chrome.storage.local.get('feeds', (data) => {
-        const feeds = data.feeds || [];
-        parseFeeds(feeds);
-      });
+      // Send message to trigger feed parsing
+      chrome.runtime.sendMessage({ type: 'configImported' });
     });
 
     const removeBtn = document.createElement('button');
@@ -138,34 +136,99 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Add new feed URL
-  addRssButton.addEventListener('click', () => {
-    const feedUrl = rssInput.value.trim();
-    if (!feedUrl) return;
-
-    // Validate URL format
+  addRssButton.addEventListener('click', async () => {
+    const input = rssInput.value.trim();
+    
+    // Try parsing as URL first
     try {
-      new URL(feedUrl);
-    } catch (err) {
-      showStatus('Invalid URL format. Please enter a valid URL starting with http:// or https://', 'error');
-      return;
+      new URL(input);
+      // It's a valid URL, proceed with existing RSS feed addition logic
+      addRSSFeed(input);
+    } catch {
+      // Not a URL, treat as podcast name search
+      try {
+        const response = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(input)}&entity=podcast`);
+        const data = await response.json();
+        
+        if (data.results.length === 0) {
+          showStatus('No podcasts found with that name', 'error');
+          return;
+        }
+        
+        console.log('iTunes API response:', data.results[0]); // Log first result to see all available fields
+        
+        // Show results in a dropdown or modal
+        showSearchResults(data.results);
+      } catch (err) {
+        showStatus('Error searching for podcast', 'error');
+      }
+    }
+  });
+
+  function showSearchResults(results) {
+    // Remove any existing results
+    const existingResults = document.querySelector('.search-results');
+    if (existingResults) {
+      existingResults.remove();
     }
 
-    chrome.storage.local.get('feeds', (data) => {
-      const feeds = data.feeds || [];
-      if (!feeds.includes(feedUrl)) {
-        feeds.push(feedUrl);
-        chrome.storage.local.set({ feeds }, () => {
-          addFeedToUI(feedUrl);
-          showStatus('Feed added successfully!', 'success');
+    const resultsDiv = document.createElement('div');
+    resultsDiv.className = 'search-results';
+    
+    // Add close button at the top
+    const closeButton = document.createElement('button');
+    closeButton.className = 'close-results';
+    closeButton.innerHTML = '×';
+    closeButton.title = 'Close';
+    closeButton.onclick = () => resultsDiv.remove();
+    resultsDiv.appendChild(closeButton);
+    
+    results.forEach(podcast => {
+      const resultItem = document.createElement('div');
+      resultItem.className = 'search-result-item';
+
+      // Format episode count
+      const episodeCount = podcast.trackCount ? `${podcast.trackCount} episodes` : '';
+      
+      resultItem.innerHTML = `
+        <div class="podcast-title">${podcast.collectionName}</div>
+        <div class="podcast-info">
+          ${episodeCount}
+          ${podcast.releaseDate ? ` • Updated: ${new Date(podcast.releaseDate).toLocaleDateString()}` : ''}
+        </div>
+      `;
+      
+      resultItem.addEventListener('click', () => {
+        if (podcast.feedUrl) {
+          addRSSFeed(podcast.feedUrl);
+          resultsDiv.remove();
           rssInput.value = '';
-          // Notify the player window that a feed was added
-          chrome.runtime.sendMessage({ type: 'feedAdded' });
-        });
-      } else {
-        showStatus('This feed is already added.', 'error');
+        } else {
+          showStatus('No RSS feed available for this podcast', 'error');
+        }
+      });
+      
+      resultsDiv.appendChild(resultItem);
+    });
+
+    // Add click outside handler
+    document.addEventListener('click', (e) => {
+      if (!resultsDiv.contains(e.target) && !rssInput.contains(e.target)) {
+        resultsDiv.remove();
       }
     });
-  });
+
+    // Close on input blur (with slight delay to allow for result clicking)
+    rssInput.addEventListener('blur', () => {
+      setTimeout(() => {
+        if (!resultsDiv.matches(':hover')) {
+          resultsDiv.remove();
+        }
+      }, 200);
+    });
+
+    rssInput.parentElement.appendChild(resultsDiv);
+  }
 
   // Load existing feeds
   chrome.storage.local.get('feeds', (data) => {
@@ -182,5 +245,33 @@ document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => {
       feedStatus.style.display = 'none';
     }, 3000);
+  }
+
+  function addRSSFeed(feedUrl) {
+    // Validate URL format
+    try {
+      new URL(feedUrl);
+    } catch (err) {
+      showStatus('Invalid URL format', 'error');
+      return;
+    }
+
+    // Add to storage
+    chrome.storage.local.get('feeds', (data) => {
+      const feeds = data.feeds || [];
+      if (!feeds.includes(feedUrl)) {
+        feeds.push(feedUrl);
+        chrome.storage.local.set({ feeds }, () => {
+          addFeedToUI(feedUrl);
+          showStatus('Feed added successfully!', 'success');
+          // Clear input
+          rssInput.value = '';
+          // Notify that config was updated to trigger feed parsing
+          chrome.runtime.sendMessage({ type: 'configImported' });
+        });
+      } else {
+        showStatus('This feed is already added', 'error');
+      }
+    });
   }
 }); 
