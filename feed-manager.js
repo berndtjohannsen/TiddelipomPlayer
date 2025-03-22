@@ -108,18 +108,55 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
           }
           
+          const channel = xmlDoc.querySelector('channel');
+          
           // Update title
-          const feedTitle = xmlDoc.querySelector('channel > title')?.textContent;
+          const feedTitle = channel.querySelector('title')?.textContent;
           if (feedTitle) {
             titleDiv.textContent = feedTitle;
           }
+
+          // Get feed description
+          const description = channel.querySelector('description')?.textContent;
+          if (description) {
+            const descDiv = document.createElement('div');
+            descDiv.className = 'feed-description';
+            
+            // Create a temporary div to safely parse HTML
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = description;
+            
+            // Remove any script tags for security
+            tempDiv.querySelectorAll('script').forEach(script => script.remove());
+            
+            // Clean the HTML and set it
+            descDiv.innerHTML = tempDiv.innerHTML;
+            
+            feedInfo.insertBefore(descDiv, detailsDiv);
+          }
           
-          // Update episode count
+          // Update episode count and last update
           const items = xmlDoc.querySelectorAll('item');
           const audioItems = Array.from(items).filter(item => 
             item.querySelector('enclosure')?.getAttribute('type') === 'audio/mpeg'
           );
-          episodesSpan.textContent = `Episodes: ${audioItems.length}`;
+          
+          // Get latest episode date
+          let latestDate = null;
+          audioItems.forEach(item => {
+            const pubDate = new Date(item.querySelector('pubDate')?.textContent);
+            if (!latestDate || pubDate > latestDate) {
+              latestDate = pubDate;
+            }
+          });
+
+          const infoSpan = document.createElement('span');
+          infoSpan.className = 'feed-info-text';
+          infoSpan.textContent = `${audioItems.length} episodes`;
+          if (latestDate) {
+            infoSpan.textContent += ` • Updated: ${latestDate.toLocaleDateString()}`;
+          }
+          detailsDiv.appendChild(infoSpan);
           
           // Clear any previous errors
           errorDiv.style.display = 'none';
