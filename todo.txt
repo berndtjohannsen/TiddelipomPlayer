@@ -23,6 +23,8 @@
 - rever 15 seconds in player
 - button reset configuration to startup (hard)
 . version number (name) configurations
+- max xhannels to show
+- test invalid entries
 
 update configuration
 - feeds

@@ -82,11 +82,8 @@ function loadLiveChannels() {
       playBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         
-        // Stop any currently playing audio first
-        player.pause();
-        player.currentTime = 0;
-        
         if (player.src === channel.url) {
+          // Same channel - just toggle play/pause
           if (player.paused) {
             player.play();
             playBtn.textContent = '⏸';
@@ -95,6 +92,9 @@ function loadLiveChannels() {
             playBtn.textContent = '⏵';
           }
         } else {
+          // Different channel - stop current and play new
+          player.pause();
+          
           // Reset all other play buttons
           document.querySelectorAll('.audio-control').forEach(btn => {
             btn.textContent = '⏵';
