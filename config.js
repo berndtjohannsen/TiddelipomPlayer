@@ -30,18 +30,39 @@ document.addEventListener('DOMContentLoaded', () => {
   // Handle configuration export
   exportButton.addEventListener('click', async () => {
     try {
-      const data = await chrome.storage.local.get(['feeds', 'playbackPositions', 'playedEpisodes']);
+      const data = await chrome.storage.local.get(['feeds', 'audioLimit', 'liveChannels']);
       
+      // Create config object with current timestamp
       const config = {
         version: '1.0',
         timestamp: new Date().toISOString(),
-        feeds: data.feeds?.map(url => ({
-          type: 'rss',
-          url: url
-        })) || [],
-        playedEpisodes: data.playedEpisodes || {},
-        playbackPositions: data.playbackPositions || {}
+        feeds: []
       };
+
+      // Process RSS feeds
+      for (const feed of (data.feeds || [])) {
+        // Get feed-specific data
+        const feedData = await chrome.storage.local.get([`playedEpisodes_${feed}`, `playbackPositions_${feed}`]);
+        
+        config.feeds.push({
+          type: 'rss',
+          url: feed,
+          maxEpisodes: data.audioLimit || 3,
+          playedEpisodes: feedData[`playedEpisodes_${feed}`] || [],
+          playbackPositions: feedData[`playbackPositions_${feed}`] || {}
+        });
+      }
+
+      // Add live channels
+      const liveChannels = data.liveChannels || [];
+      for (const channel of liveChannels) {
+        config.feeds.push({
+          type: 'live',
+          name: channel.name,
+          url: channel.url,
+          description: channel.description
+        });
+      }
 
       // Create and trigger download
       const blob = new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' });
@@ -83,12 +104,34 @@ document.addEventListener('DOMContentLoaded', () => {
         // Clear all existing configuration first
         await chrome.storage.local.clear();
 
-        // Extract and save feeds
-        const feeds = config.feeds.map(feed => feed.url);
+        // Separate RSS feeds and live channels
+        const feeds = [];
+        const liveChannels = [];
+
+        for (const feed of config.feeds) {
+          if (feed.type === 'live') {
+            liveChannels.push({
+              name: feed.name,
+              url: feed.url,
+              description: feed.description
+            });
+          } else if (feed.type === 'rss') {
+            feeds.push(feed.url);
+            // Store feed-specific data
+            if (feed.playedEpisodes) {
+              await chrome.storage.local.set({ [`playedEpisodes_${feed.url}`]: feed.playedEpisodes });
+            }
+            if (feed.playbackPositions) {
+              await chrome.storage.local.set({ [`playbackPositions_${feed.url}`]: feed.playbackPositions });
+            }
+          }
+        }
+
+        // Store configuration
         await chrome.storage.local.set({
           feeds,
-          playedEpisodes: config.playedEpisodes || {},
-          playbackPositions: config.playbackPositions || {}
+          liveChannels,
+          audioLimit: config.feeds.find(f => f.type === 'rss')?.maxEpisodes || 3
         });
 
         showStatus(importStatus, 'Configuration imported successfully!', 'success');

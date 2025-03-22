@@ -5,6 +5,129 @@ if (document.readyState === 'loading') {
   initializePopup();
 }
 
+// Function to load and display live channels
+function loadLiveChannels() {
+  const channelList = document.getElementById('channelList');
+  const player = document.getElementById('player');
+  const nowPlaying = document.getElementById('nowPlaying');
+  
+  const channelContent = channelList.querySelector('.section-content');
+  if (!channelContent) {
+    console.error('Could not find channel section content');
+    return;
+  }
+
+  console.log('Loading live channels...');
+  chrome.storage.local.get('liveChannels', (data) => {
+    const channels = data.liveChannels || [];
+    console.log('Found live channels:', channels);
+    channelContent.innerHTML = '';
+
+    // Create channels container
+    const channelsContainer = document.createElement('div');
+    channelsContainer.className = 'feed-container';
+
+    // Add header row
+    const header = document.createElement('div');
+    header.className = 'episode-header';
+    
+    const playHeader = document.createElement('div');
+    playHeader.className = 'header-play';
+    
+    const titleHeader = document.createElement('div');
+    titleHeader.className = 'header-title';
+    titleHeader.textContent = 'Channel';
+
+    const spacerHeader = document.createElement('div');
+    spacerHeader.className = 'header-complete';
+    spacerHeader.style.visibility = 'hidden';  // Hidden but maintains spacing
+    
+    header.appendChild(playHeader);
+    header.appendChild(titleHeader);
+    header.appendChild(spacerHeader);
+    channelsContainer.appendChild(header);
+
+    // Add each channel
+    channels.forEach(channel => {
+      console.log('Adding channel:', channel.name);
+      const channelDiv = document.createElement('div');
+      channelDiv.className = 'audio-item';
+
+      // Create play button
+      const playBtn = document.createElement('button');
+      playBtn.className = 'audio-control';
+      playBtn.textContent = '⏵';
+      playBtn.title = 'Play';
+
+      // Create channel content
+      const contentDiv = document.createElement('div');
+      contentDiv.className = 'audio-content';
+      
+      const titleDiv = document.createElement('div');
+      titleDiv.className = 'audio-title';
+      titleDiv.textContent = channel.name;
+      
+      const descDiv = document.createElement('div');
+      descDiv.className = 'audio-date';  // Using audio-date for consistent styling
+      descDiv.textContent = channel.description;
+      
+      contentDiv.appendChild(titleDiv);
+      contentDiv.appendChild(descDiv);
+
+      // Add spacer div to maintain grid alignment
+      const spacerDiv = document.createElement('div');
+      spacerDiv.style.width = '30px';  // Match the width of the complete column
+
+      // Add click handler for play button
+      playBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        
+        if (player.src === channel.url) {
+          if (player.paused) {
+            player.play();
+            playBtn.textContent = '⏸';
+          } else {
+            player.pause();
+            playBtn.textContent = '⏵';
+          }
+        } else {
+          // Reset all other play buttons
+          document.querySelectorAll('.audio-control').forEach(btn => {
+            btn.textContent = '⏵';
+          });
+          
+          // Play this channel
+          player.src = channel.url;
+          player.play();
+          playBtn.textContent = '⏸';
+          nowPlaying.textContent = channel.name;
+        }
+      });
+
+      // Update button state based on player events
+      player.addEventListener('play', () => {
+        if (player.src === channel.url) {
+          playBtn.textContent = '⏸';
+        }
+      });
+
+      player.addEventListener('pause', () => {
+        if (player.src === channel.url) {
+          playBtn.textContent = '⏵';
+        }
+      });
+
+      // Assemble channel item
+      channelDiv.appendChild(playBtn);
+      channelDiv.appendChild(contentDiv);
+      channelDiv.appendChild(spacerDiv);
+      channelsContainer.appendChild(channelDiv);
+    });
+
+    channelContent.appendChild(channelsContainer);
+  });
+}
+
 function initializePopup() {
   // Initialize UI elements
   const channelList = document.getElementById('channelList');
@@ -66,6 +189,20 @@ function initializePopup() {
   } else {
     // Standalone-specific code
     initializeStandaloneFeatures();
+  }
+
+  // Load live channels when configuration changes
+  if (isExtension) {
+    chrome.runtime.onMessage.addListener((message) => {
+      if (message.type === 'configImported') {
+        console.log('Config imported, reloading live channels...');
+        loadLiveChannels();
+      }
+    });
+
+    // Initial load of live channels
+    console.log('Initial load of live channels...');
+    loadLiveChannels();
   }
 }
 
@@ -270,6 +407,9 @@ function initializeExtensionFeatures() {
         // Notify config page to update its feed list
         chrome.runtime.sendMessage({ type: 'configUpdated' });
       });
+
+      // Reload live channels
+      loadLiveChannels();
     } else if (message.type === 'feedRemoved' || message.type === 'feedAdded') {
       // Reload feeds from storage after removal or addition
       chrome.storage.local.get('feeds', (data) => {
@@ -637,15 +777,35 @@ function initializeExtensionFeatures() {
   });
 
   // Load saved feeds
-  chrome.storage.local.get(['feeds'], (data) => {
+  chrome.storage.local.get(['feeds', 'liveChannels'], (data) => {
     const feeds = data.feeds || [];
-    if (feeds.length === 0) {
+    const liveChannels = data.liveChannels || [];
+    
+    console.log('Initial storage check - feeds:', feeds, 'live channels:', liveChannels);
+    
+    if (feeds.length === 0 && liveChannels.length === 0) {
       // Try to load startup configuration
+      console.log('Loading startup configuration...');
       fetch(chrome.runtime.getURL('startup-config.json'))
         .then(response => response.json())
         .then(config => {
+          console.log('Loaded startup config:', config);
           if (config.feeds && config.feeds.length > 0) {
-            const validFeeds = config.feeds.filter(feed => feed.url.trim() !== '');
+            // Separate RSS feeds and live channels
+            const rssFeeds = config.feeds.filter(feed => feed.type === 'rss');
+            const liveChannels = config.feeds.filter(feed => feed.type === 'live');
+
+            console.log('Found RSS feeds:', rssFeeds);
+            console.log('Found live channels:', liveChannels);
+
+            // Store live channels
+            chrome.storage.local.set({ liveChannels }, () => {
+              console.log('Stored live channels');
+              loadLiveChannels();  // Reload live channels after storing
+            });
+
+            // Process RSS feeds
+            const validFeeds = rssFeeds.filter(feed => feed.url.trim() !== '');
             if (validFeeds.length > 0) {
               const feedUrls = validFeeds.map(feed => feed.url);
               chrome.storage.local.set({
@@ -667,7 +827,12 @@ function initializeExtensionFeatures() {
         })
         .catch(err => console.warn('Failed to load startup configuration:', err));
     } else {
+      // Load existing data
       parseFeeds(feeds);
+      if (liveChannels.length > 0) {
+        console.log('Loading existing live channels:', liveChannels);
+        loadLiveChannels();
+      }
     }
   });
 
