@@ -20,6 +20,8 @@
 - the player window is sometimes too big (if the number of pods are few)
 - link to dircotry sevices in the configuration page
 - ljudböcker
+- rever 15 seconds in player
+- button reset configuration to startup
 
 update configuration
 - feeds

@@ -21,6 +21,19 @@
   </div>
 
   <div class="section">
+    <h2>Live Channel Management</h2>
+    <p>Add and manage your live audio channels.</p>
+    <div class="input-group">
+      <input type="text" id="channelName" placeholder="Channel Name">
+      <input type="text" id="channelUrl" placeholder="Stream URL">
+      <input type="text" id="channelDescription" placeholder="Description (optional)">
+      <button id="addChannel">Add Channel</button>
+    </div>
+    <div id="channelList"></div>
+    <div id="channelStatus" class="status"></div>
+  </div>
+
+  <div class="section">
     <h2>Export Configuration</h2>
     <p>Export your current configuration to a JSON file. This includes your feeds, playback positions, and settings.</p>
     <div class="button-group">
@@ -49,6 +62,7 @@
   </div>
 
   <script src="feed-manager.js"></script>
+  <script src="channel-manager.js"></script>
   <script src="config.js"></script>
 </body>
 </html> 

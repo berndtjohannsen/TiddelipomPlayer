@@ -82,6 +82,10 @@ function loadLiveChannels() {
       playBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         
+        // Stop any currently playing audio first
+        player.pause();
+        player.currentTime = 0;
+        
         if (player.src === channel.url) {
           if (player.paused) {
             player.play();
