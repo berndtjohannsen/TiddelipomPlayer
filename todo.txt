@@ -21,7 +21,8 @@
 - link to dircotry sevices in the configuration page
 - ljudböcker
 - rever 15 seconds in player
-- button reset configuration to startup
+- button reset configuration to startup (hard)
+. version number (name) configurations
 
 update configuration
 - feeds
