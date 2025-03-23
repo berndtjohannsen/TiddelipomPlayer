@@ -101,40 +101,40 @@ document.addEventListener('DOMContentLoaded', () => {
           throw new Error('Invalid configuration file format');
         }
 
-        // Clear all existing configuration first
-        await chrome.storage.local.clear();
+        // Get current configuration
+        const currentConfig = await chrome.storage.local.get(['feeds', 'liveChannels', 'audioLimit']);
+        const currentFeeds = currentConfig.feeds || [];
+        const currentChannels = currentConfig.liveChannels || [];
 
-        // Separate RSS feeds and live channels
-        const feeds = [];
-        const liveChannels = [];
-
+        // Process new feeds and channels
         for (const feed of config.feeds) {
           if (feed.type === 'live') {
-            liveChannels.push({
-              name: feed.name,
-              url: feed.url,
-              description: feed.description
-            });
+            // Add live channel if it doesn't exist (checking by URL)
+            if (!currentChannels.some(ch => ch.url === feed.url)) {
+              currentChannels.push({
+                name: feed.name,
+                url: feed.url,
+                description: feed.description
+              });
+            }
           } else if (feed.type === 'rss') {
-            feeds.push(feed.url);
-            // Store feed-specific data
-            if (feed.playedEpisodes) {
-              await chrome.storage.local.set({ [`playedEpisodes_${feed.url}`]: feed.playedEpisodes });
+            // Add RSS feed if it doesn't exist
+            if (!currentFeeds.includes(feed.url)) {
+              currentFeeds.push(feed.url);
             }
-            if (feed.playbackPositions) {
-              await chrome.storage.local.set({ [`playbackPositions_${feed.url}`]: feed.playbackPositions });
-            }
+            // We skip playedEpisodes and playbackPositions as requested
           }
         }
 
-        // Store configuration
+        // Store updated configuration
         await chrome.storage.local.set({
-          feeds,
-          liveChannels,
-          audioLimit: config.feeds.find(f => f.type === 'rss')?.maxEpisodes || 3
+          feeds: currentFeeds,
+          liveChannels: currentChannels,
+          // Keep existing audioLimit or use new one if none exists
+          audioLimit: currentConfig.audioLimit || config.feeds.find(f => f.type === 'rss')?.maxEpisodes || 3
         });
 
-        showStatus(importStatus, 'Configuration imported successfully!', 'success');
+        showStatus(importStatus, 'Configuration merged successfully!', 'success');
         
         // Notify the popup to refresh
         chrome.runtime.sendMessage({ type: 'configImported' });
