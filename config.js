@@ -94,11 +94,26 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!file) return;
 
         const text = await file.text();
-        const config = JSON.parse(text);
+        let config;
+        try {
+          config = JSON.parse(text);
+        } catch (parseErr) {
+          // Create a user-friendly error message for JSON parsing errors
+          let errorMsg = 'Invalid JSON format. ';
+          if (parseErr instanceof SyntaxError) {
+            if (parseErr.message.includes('position')) {
+              errorMsg += 'Please check your JSON syntax. ' + 
+                        parseErr.message.replace(/^JSON\.parse: /, '').replace(/of the JSON data$/, '');
+            } else {
+              errorMsg += parseErr.message;
+            }
+          }
+          throw new Error(errorMsg);
+        }
 
         // Validate config version and structure
         if (!config.version || !config.feeds) {
-          throw new Error('Invalid configuration file format');
+          throw new Error('Invalid configuration file format - missing version or feeds');
         }
 
         // Get current configuration
@@ -139,8 +154,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Notify the popup to refresh
         chrome.runtime.sendMessage({ type: 'configImported' });
       } catch (err) {
-        console.error('Error importing configuration:', err);
-        showStatus(importStatus, 'Failed to import configuration. Please ensure the file is valid.', 'error');
+        showStatus(importStatus, err.message, 'error');
       }
     };
 

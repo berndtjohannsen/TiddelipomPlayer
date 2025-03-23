@@ -1,0 +1,24 @@
+{
+  "version": "1.0",
+  "timestamp": "2024-03-22T12:00:00Z",
+  "feeds": [
+    {
+      "type": "live",
+      "name": "DR P1",
+      "url": "https://drliveradio.akamaized.net/hls/live/2022411/p1/playlist.m3u8",
+      "description": "Danish Radio's main channel - News and current affairs"
+    },
+    {
+      "type": "live",
+      "name": "DR P2",
+      "url": "https://drliveradio.akamaized.net/hls/live/2022411/p2/playlist.m3u8",
+      "description": "Danish culture and classical music"
+    },
+    {
+      "type": "live",
+      "name": "DR P3",
+      "url": "https://drliveradio.akamaized.net/hls/live/2022411/p3/playlist.m3u8",
+      "description": "Danish popular music and entertainment"
+    }
+  ]
+} 

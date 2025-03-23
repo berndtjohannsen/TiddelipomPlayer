@@ -1,0 +1,28 @@
+{
+  "version": "1.0",
+  "timestamp": "2024-03-22T12:00:00Z",
+  "comment": "Norwegian national radio channels from NRK. P1.  All streams are high quality MP3 format. The complete list of NRK channels is here: https://lyd.nrk.no/ ",
+  "feeds": [
+    {
+      "type": "live",
+      "name": "NRK P1 Stor-Oslo",
+      "url": "https://lyd.nrk.no/nrk_radio_p1_stor-oslo_mp3_h",
+      "description": "NRK's main radio channel - News and regional content from Greater Oslo",
+      "comment": "P1 is regional - this is the Greater Oslo version. Other regions are available at lyd.nrk.no"
+    },
+    {
+      "type": "live",
+     l "name": "NRK P2",
+      "url": "https://lyd.nrk.no/nrk_radio_p2_mp3_h",
+      "description": "Norwegian culture, society and in-depth news",
+      "comment": "National channel - same stream for all regions"
+    },
+    {
+      "type": "live",
+      "name": "NRK P3",
+      "url": "https://lyd.nrk.no/nrk_radio_p3_mp3_h",
+      "description": "Norwegian youth channel with music and entertainment",
+      "comment": "National channel - same stream for all regions"
+    }
+  ]
+} 

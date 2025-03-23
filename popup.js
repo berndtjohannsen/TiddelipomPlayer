@@ -100,11 +100,58 @@ function loadLiveChannels() {
             btn.textContent = '⏵';
           });
           
+          // Clear any previous error messages
+          const existingError = contentDiv.querySelector('.audio-error');
+          if (existingError) {
+            existingError.remove();
+          }
+
           // Play this channel
-          player.src = channel.url;
-          player.play();
-          playBtn.textContent = '⏸';
-          nowPlaying.textContent = channel.name;
+          try {
+            player.src = channel.url;
+            player.play().catch(err => {
+              playBtn.textContent = '⏵';
+              
+              // Show user-friendly error message based on error type
+              let errorMessage = 'Could not play this audio stream';
+              if (err instanceof DOMException) {
+                if (err.name === 'NotSupportedError') {
+                  errorMessage = 'This audio format is not supported';
+                } else if (err.name === 'NotAllowedError') {
+                  errorMessage = 'Playback was blocked by your browser';
+                } else if (err.name === 'AbortError') {
+                  errorMessage = 'Playback was interrupted';
+                } else if (err.name === 'NetworkError') {
+                  errorMessage = 'Network error while loading audio';
+                }
+              }
+              
+              const errorDiv = document.createElement('div');
+              errorDiv.className = 'audio-error';
+              errorDiv.textContent = errorMessage;
+              
+              // Remove any existing error message
+              const existingError = contentDiv.querySelector('.audio-error');
+              if (existingError) {
+                existingError.remove();
+              }
+              
+              contentDiv.appendChild(errorDiv);
+              
+              // Clear now playing
+              nowPlaying.textContent = '';
+            });
+            playBtn.textContent = '⏸';
+            nowPlaying.textContent = channel.name;
+          } catch (err) {
+            playBtn.textContent = '⏵';
+            
+            // Show error message to user
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'audio-error';
+            errorDiv.textContent = 'Could not initialize audio player';
+            contentDiv.appendChild(errorDiv);
+          }
         }
       });
 

@@ -1,68 +1,24 @@
 # TiddelipomPlayer
-RSS pod player as chrome (only) extension
+This is a pod and "radio" player available as a Chrome extentsion. The approach is to be simple and for example rely on an internet connection. Pods are not downloaded.
+
 (this is the continuation of the repository "SidebarRSS, which is no more maintained)
-This is still very much work in progress
+
+This is still work in progress.
+
+When installing the extension, you can launch a "player" by clicking the icon. The player is a standard chrome window using the Chrome HTML player. The player can be configured by pressing a button in the gui.
+
+Configurations (pods, channels) can be added in the configuration window. There will be a number of configurations available in the GIT repository (or somehere else). The main purpose of these configurations is to be able to add live audio (radio) feeds which typically are not available as pods (RSS feeds). Expect at least 1 channel configuration file per country. You can also create you own configuration if you know the URL of a live feed.
+
 
 To test: upload all files in Chrome (chrome://extensions)
 
 Remaining work:
-- package for easy upload
-- support for pod search
-- support for direect audio (channel)
-- better looks ..
+- (much, much) better looks ..
+- package as extension
+- more channel configuration files
+- a standalone player app for mobiles. This should work semmlessly (synch) with this chrome extension.
+- maintain play position when stopping a pod
+- a way to import configuration files through HTTP (probably to git)
 
-## Styling Guide
 
-The extension comes with a standalone HTML version that can be used for styling purposes. Any styles applied to the standalone version (except width-related properties) will work in both the standalone and extension versions.
 
-### What Can Be Styled
-
-1. Typography
-   - Font sizes, families, and weights
-   - Line heights
-   - Text colors
-   - Text overflow/ellipsis behavior
-
-2. Colors
-   - Background colors
-   - Text colors
-   - Border colors
-   - Hover state colors
-   - Played/unplayed state colors
-
-3. Spacing and Layout (except width-related)
-   - Padding and margins
-   - Grid gap adjustments
-   - Row heights
-   - Vertical spacing between sections
-
-4. Visual Effects
-   - Border styles
-   - Border radius
-   - Box shadows
-   - Opacity
-   - Transitions/animations
-   - Hover/active states
-
-5. Icons and Controls
-   - Play/pause button appearance
-   - Checkbox styles
-   - Toggle arrow appearance
-   - Button hover effects
-
-6. Section Styling
-   - Feed header backgrounds
-   - Episode row backgrounds
-   - Separator lines
-   - Column header appearance
-
-7. Player Controls
-   - Audio player button colors
-   - Progress bar colors
-   - Volume control appearance
-
-### Important Notes
-
-- Do not modify any width-related properties (width, min-width, max-width) as these need to stay fixed for proper extension behavior
-- The standalone version is purely for styling purposes and does not include actual functionality
-- All styling should be done through CSS to ensure consistency between both versions
