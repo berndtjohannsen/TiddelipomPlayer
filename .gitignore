@@ -7,3 +7,5 @@ node_modules/
 *.log 
 test*
 rss-reader-config*
+.cursorrules
+todo.txt
