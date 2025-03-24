@@ -85,7 +85,9 @@ function loadLiveChannels() {
         if (player.src === channel.url) {
           // Same channel - just toggle play/pause
           if (player.paused) {
-            player.play();
+            player.play().catch(err => {
+              handlePlaybackError(err, contentDiv, playBtn);
+            });
             playBtn.textContent = '⏸';
           } else {
             player.pause();
@@ -101,10 +103,7 @@ function loadLiveChannels() {
           });
           
           // Clear any previous error messages
-          const existingError = contentDiv.querySelector('.audio-error');
-          if (existingError) {
-            existingError.remove();
-          }
+          clearErrorMessages(contentDiv);
 
           // Play this channel
           try {
@@ -116,57 +115,12 @@ function loadLiveChannels() {
 
             player.src = channel.url;
             player.play().catch(err => {
-              playBtn.textContent = '⏵';
-              
-              // Show user-friendly error message based on error type
-              let errorMessage = 'Could not play this audio stream';
-              if (err instanceof DOMException) {
-                if (err.name === 'NotSupportedError' && !navigator.onLine) {
-                  // If we're offline, show network error instead of format error
-                  errorMessage = 'Cannot play audio - please check your internet connection';
-                } else if (err.name === 'NotSupportedError') {
-                  errorMessage = 'This audio format is not supported';
-                } else if (err.name === 'NotAllowedError') {
-                  errorMessage = 'Playback was blocked by your browser';
-                } else if (err.name === 'AbortError') {
-                  errorMessage = 'Playback was interrupted';
-                } else if (err.name === 'NetworkError') {
-                  errorMessage = 'Cannot play audio - please check your internet connection';
-                }
-              }
-              
-              const errorDiv = document.createElement('div');
-              errorDiv.className = 'audio-error';
-              errorDiv.textContent = errorMessage;
-              
-              // Remove any existing error message
-              const existingError = contentDiv.querySelector('.audio-error');
-              if (existingError) {
-                existingError.remove();
-              }
-              
-              contentDiv.appendChild(errorDiv);
-              
-              // Clear now playing
-              nowPlaying.textContent = '';
+              handlePlaybackError(err, contentDiv, playBtn);
             });
             playBtn.textContent = '⏸';
             nowPlaying.textContent = channel.name;
           } catch (err) {
-            playBtn.textContent = '⏵';
-            
-            // Show network error for fetch failures
-            const errorDiv = document.createElement('div');
-            errorDiv.className = 'audio-error';
-            errorDiv.textContent = 'Cannot play audio - please check your internet connection';
-            
-            // Remove any existing error message
-            const existingError = contentDiv.querySelector('.audio-error');
-            if (existingError) {
-              existingError.remove();
-            }
-            
-            contentDiv.appendChild(errorDiv);
+            handlePlaybackError(err, contentDiv, playBtn);
           }
         }
       });
@@ -920,6 +874,17 @@ function initializeExtensionFeatures() {
       url: chrome.runtime.getURL('config.html')
     });
   });
+
+  // Add these event listeners to the audio player
+  player.addEventListener('playing', () => {
+    // Clear ALL error messages when any playback starts
+    document.querySelectorAll('.audio-error').forEach(error => error.remove());
+  });
+
+  player.addEventListener('loadstart', () => {
+    // Clear ALL error messages when starting to load a new source
+    document.querySelectorAll('.audio-error').forEach(error => error.remove());
+  });
 }
 
 async function fetchFeed(url) {
@@ -938,4 +903,44 @@ async function fetchFeed(url) {
     feedContainer.appendChild(feedError);
     return null;
   }
+}
+
+function clearErrorMessages(contentDiv) {
+  // Clear errors only for this specific channel's content div
+  const existingError = contentDiv.querySelector('.audio-error');
+  if (existingError) {
+    existingError.remove();
+  }
+}
+
+// Add event listener for when audio source actually starts playing
+player.addEventListener('playing', () => {
+  // Clear any error messages when playback successfully starts
+  const allContentDivs = document.querySelectorAll('.channel-content');
+  allContentDivs.forEach(div => clearErrorMessages(div));
+});
+
+function handlePlaybackError(err, contentDiv, playBtn) {
+  playBtn.textContent = '⏵';
+  
+  let errorMessage = 'Could not play this audio stream';
+  if (err instanceof DOMException) {
+    if (!navigator.onLine) {
+      errorMessage = 'Cannot play audio - please check your internet connection';
+    } else if (err.name === 'NotSupportedError') {
+      errorMessage = 'This audio format is not supported';
+    } else if (err.name === 'NotAllowedError') {
+      errorMessage = 'Playback was blocked by your browser';
+    } else if (err.name === 'AbortError') {
+      errorMessage = 'Playback was interrupted';
+    } else if (err.name === 'NetworkError') {
+      errorMessage = 'Cannot play audio - please check your internet connection';
+    }
+  }
+  
+  clearErrorMessages(contentDiv);  // Clear existing errors first
+  const errorDiv = document.createElement('div');
+  errorDiv.className = 'audio-error';
+  errorDiv.textContent = errorMessage;
+  contentDiv.appendChild(errorDiv);
 }
