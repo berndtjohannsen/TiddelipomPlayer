@@ -1,0 +1,40 @@
+{
+  "version": "1.0",
+  "timestamp": "2025-03-24T19:53:21.651Z",
+  "feeds": [
+    {
+      "type": "rss",
+      "url": "http://juridikpodden.libsyn.com/rss",
+      "maxEpisodes": 3,
+      "playedEpisodes": [],
+      "playbackPositions": {}
+    },
+    {
+      "type": "rss",
+      "url": "https://feed.pod.space/kapitalet",
+      "maxEpisodes": 3,
+      "playedEpisodes": [],
+      "playbackPositions": {}
+    },
+    {
+      "type": "live",
+      "name": "Sveriges Radio P1",
+      "url": "https://sverigesradio.se/topsy/direkt/132-hi-mp3",
+      "description": "Sveriges Radio P1 - News and culture from Swedish Radio"
+    },
+    {
+      "type": "live",
+      "name": "Sverige Raddio P2",
+      "url": "https://sverigesradio.se/topsy/direkt/164-hi.mp3",
+      "description": "Contemporary music and entertainment"
+    },
+    {
+      "type": "live",
+      "name": "Sverige Radddio P3",
+      "url": "https://sverigesradio.se/topsy/direkt/164-hi.mp3",
+      "description": "Contemporary music and entertainment"
+    }
+
+
+  ]
+}
