@@ -1,21 +1,8 @@
 {
   "version": "1.0",
   "timestamp": "2025-03-22T19:03:09.459Z",
+  "comment": "Swedish national radio channels from SR. SR channel links are here: https://www.sverigesradio.se/grupp/10632",
   "feeds": [
-    {
-      "type": "rss",
-      "url": "http://juridikpodden.libsyn.com/rss",
-      "maxEpisodes": 3,
-      "playedEpisodes": [],
-      "playbackPositions": {}
-    },
-    {
-      "type": "rss",
-      "url": "https://www.patreon.com/rss/kungarochkrig?auth=xwWZm_wjlaOXcfWz2Ew5suk3gBs-TNAy&show=874057",
-      "maxEpisodes": 3,
-      "playedEpisodes": [],
-      "playbackPositions": {}
-    },
     {
       "type": "live",
       "name": "Sveriges Radio P1",
@@ -24,7 +11,13 @@
     },
     {
       "type": "live",
-      "name": "Sverige Raddio P3",
+      "name": "Sveriges Radio P2",
+      "url": "https://sverigesradio.se/topsy/direkt/2562-hi-mp3.m3u",
+      "description": "Sveriges Radio P1 - News and culture from Swedish Radio"
+    },
+    {
+      "type": "live",
+      "name": "Sverige Radio P3",
       "url": "https://sverigesradio.se/topsy/direkt/164-hi.mp3",
       "description": "Contemporary music and entertainment"
     }
