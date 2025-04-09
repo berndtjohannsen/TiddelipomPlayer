@@ -192,8 +192,6 @@ document.addEventListener('DOMContentLoaded', () => {
           return;
         }
         
-        console.log('iTunes API response:', data.results[0]); // Log first result to see all available fields
-        
         // Show results in a dropdown or modal
         showSearchResults(data.results);
       } catch (err) {

@@ -4,10 +4,9 @@ html {
 }
 
 body {
-  width: 450px;
+  width: 350px;
   margin: 0;
-  padding: 10px;
-  padding-bottom: 120px;
+  padding: 5px;  /* Reduced from 10px */
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   font-size: 75%;
   line-height: 1.4;
@@ -15,30 +14,96 @@ body {
   background: white;
 }
 
-/* Fixed player at bottom */
-.player-container {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  background: white;
-  padding: 10px;
-  border-top: 1px solid #ddd;
-  z-index: 1000;
-  width: 430px;
+/* App header styles */
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 2px;  /* Reduced horizontal padding */
+  margin-bottom: 12px;
+  border-bottom: 1px solid #eee;
+  width: 100%;
+  box-sizing: border-box;
 }
 
-/* Player wrapper to force clipping */
+.app-info-container {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  flex: 1;
+  margin-right: 4px;  /* Reduced from 8px */
+}
+
+.app-icon {
+  width: 16px;
+  height: 16px;
+  margin-right: 6px;  /* Reduced from 8px */
+  flex-shrink: 0;
+}
+
+.app-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;  /* Allow text to be truncated */
+  flex: 1;
+}
+
+.app-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #303030;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.app-version {
+  font-size: 10px;
+  color: #666;
+}
+
+.header-config-btn {
+  background: none;
+  border: none;
+  color: #444;
+  font-size: 20px;
+  cursor: pointer;
+  padding: 6px 8px;  /* Reduced horizontal padding */
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.header-config-btn:hover {
+  background-color: #e3f2fd;
+  color: #1976d2;
+  transform: rotate(30deg);
+}
+
+.header-config-btn:active {
+  transform: rotate(120deg);
+  transition: transform 0.3s ease;
+}
+
+/* Player container styles */
+.player-container {
+  background: white;
+  padding: 0 2px 12px 2px;  /* Reduced horizontal padding */
+  margin-bottom: 12px;
+  border-bottom: 1px solid #eee;
+  width: 100%;
+  box-sizing: border-box;
+}
+
 .player-wrapper {
-  width: 430px;
-  max-width: 430px;
+  width: 100%;
+  max-width: 400px;
   overflow: hidden;
   position: relative;
 }
 
-/* Force audio player to fit */
 #player {
-  width: 430px !important;
+  width: 100% !important;
   max-width: 430px !important;
   min-width: 0 !important;
   margin-bottom: 5px;
@@ -81,7 +146,7 @@ audio::-webkit-media-controls-toggle-closed-captions-button {
   border-bottom: none;
 }
 
-/* Section headers (▼ Channels, ▼ Pod)
+/* Section headers (â–¼ Channels, â–¼ Pod)
  * padding: controls the header height and left spacing
  */
 .section-header {
@@ -233,31 +298,14 @@ audio::-webkit-media-controls-toggle-closed-captions-button {
 
 /* Configuration button styles */
 .config-buttons {
-  position: absolute;
-  top: -30px;
-  right: 10px;
-}
-
-.config-btn {
-  background-color: #1976d2;
-  color: white;
-  border: none;
-  padding: 5px 10px;
-  border-radius: 4px 4px 0 0;
-  cursor: pointer;
-  border: 1px solid #1565c0;
-  border-bottom: none;
-}
-
-.config-btn:hover {
-  background-color: #1565c0;
+  display: none;
 }
 
 #nowPlaying {
   font-size: 0.9em;
   color: #666;
   text-align: center;
-  margin-bottom: 5px;
+  margin: 4px 0;
 }
 
 /* Feed styles */

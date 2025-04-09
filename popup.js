@@ -13,7 +13,6 @@ function loadLiveChannels() {
   
   const channelContent = channelList.querySelector('.section-content');
   if (!channelContent) {
-    console.error('Could not find channel section content');
     return;
   }
 
@@ -114,12 +113,11 @@ function loadLiveChannels() {
             }
 
             player.src = channel.url;
-            player.play().catch(err => {
-              handlePlaybackError(err, contentDiv, playBtn);
-            });
+            await player.play();  // Wait for play to succeed before changing button
             playBtn.textContent = '⏸';
             nowPlaying.textContent = channel.name;
           } catch (err) {
+            playBtn.textContent = '⏵';  // Ensure button shows play state on error
             handlePlaybackError(err, contentDiv, playBtn);
           }
         }
@@ -155,6 +153,13 @@ function initializePopup() {
   const audioList = document.getElementById('audioList');
   const player = document.getElementById('player');
   const nowPlaying = document.getElementById('nowPlaying');
+
+  // Set version number from manifest
+  const versionElement = document.querySelector('.app-version');
+  if (versionElement) {
+    const manifest = chrome.runtime.getManifest();
+    versionElement.textContent = `v${manifest.version}`;
+  }
 
   // Check if we're in extension mode
   const isExtension = typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.id;
@@ -921,6 +926,11 @@ player.addEventListener('playing', () => {
 });
 
 function handlePlaybackError(err, contentDiv, playBtn) {
+  if (!contentDiv) {
+    console.warn('contentDiv not provided to error handler');
+    return;  // Exit gracefully if contentDiv is not available
+  }
+
   playBtn.textContent = '⏵';
   
   let errorMessage = 'Could not play this audio stream';
@@ -938,9 +948,23 @@ function handlePlaybackError(err, contentDiv, playBtn) {
     }
   }
   
-  clearErrorMessages(contentDiv);  // Clear existing errors first
+  // Clear any existing error messages
+  const existingError = contentDiv.querySelector('.audio-error');
+  if (existingError) {
+    existingError.remove();
+  }
+  
   const errorDiv = document.createElement('div');
   errorDiv.className = 'audio-error';
   errorDiv.textContent = errorMessage;
   contentDiv.appendChild(errorDiv);
 }
+
+// When setting up audio player event listeners
+player.addEventListener('error', (e) => {
+  const channelContent = player.closest('.channel-content');
+  const playBtn = channelContent?.querySelector('.audio-control');
+  if (channelContent && playBtn) {
+    handlePlaybackError(e.error || new Error('Playback failed'), channelContent, playBtn);
+  }
+});

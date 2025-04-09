@@ -5,7 +5,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     // Ensure the feed URL is valid
     if (!feedUrl) {
-      console.error('No valid feed URL provided.');
       sendResponse({ success: false, error: 'No valid feed URL provided.' });
       return;
     }
@@ -23,7 +22,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         sendResponse({ success: true, xmlText });
       })
       .catch((error) => {
-        console.error('Failed to fetch RSS feed:', error.message);
+        console.error('Runtime error fetching RSS feed:', error.message);
         sendResponse({ success: false, error: error.message });
       });
 

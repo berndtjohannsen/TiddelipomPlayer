@@ -7,6 +7,24 @@
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
+  <div class="app-header">
+    <div class="app-info-container">
+      <img src="icon16.png" alt="Tiddelipom" class="app-icon">
+      <div class="app-info">
+        <span class="app-name">TiddelipomPlayer</span>
+        <span class="app-version">v1.0.0</span>
+      </div>
+    </div>
+    <button id="configButton" class="header-config-btn" title="Open configuration">⚙</button>
+  </div>
+
+  <div class="player-container">
+    <div class="player-wrapper">
+      <audio id="player" controls preload="none"></audio>
+    </div>
+    <div id="nowPlaying"></div>
+  </div>
+
   <div id="channelList" class="section">
     <div class="section-header">
       <span class="toggle-icon">▼</span>
@@ -21,16 +39,6 @@
       <span>Pod</span>
     </div>
     <div class="section-content"></div>
-  </div>
-
-  <div class="player-container">
-    <div class="config-buttons">
-      <button id="configButton" class="config-btn" title="Open configuration">Configuration</button>
-    </div>
-    <div class="player-wrapper">
-      <audio id="player" controls preload="none"></audio>
-    </div>
-    <div id="nowPlaying"></div>
   </div>
   
   <script src="popup.js"></script>

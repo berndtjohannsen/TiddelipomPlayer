@@ -77,8 +77,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
       showStatus(exportStatus, 'Configuration exported successfully!', 'success');
     } catch (err) {
-      console.error('Error exporting configuration:', err);
-      showStatus(exportStatus, 'Failed to export configuration. Please try again.', 'error');
+      console.error('Runtime error in configuration:', err);
+      throw err;
     }
   });
 
