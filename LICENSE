@@ -27,9 +27,3 @@ Third Party Components:
    These characters are part of the Unicode Standard (https://unicode.org)
    and are used under the Unicode® Terms of Use.
 
-2. Web APIs:
-   This software uses standard Web APIs including:
-   - Fetch API
-   - Web Audio API
-   - Web Storage API
-   These are standard browser features and are used according to their respective specifications. 
