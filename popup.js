@@ -1716,9 +1716,38 @@ function loadLiveChannels() {
       contentDiv.appendChild(titleDiv);
       contentDiv.appendChild(descDiv);
 
-      // Add spacer div to maintain grid alignment
-      const spacerDiv = document.createElement('div');
-      spacerDiv.style.width = '30px';  // Match the width of the complete column
+      // Add remove icon
+      const removeDiv = document.createElement('div');
+      removeDiv.className = 'channel-icons';
+      const removeIcon = document.createElement('span');
+      removeIcon.className = 'podcast-icon';
+      removeIcon.textContent = '×';  // Using × for remove
+      removeIcon.title = 'Remove channel';
+      removeIcon.style.cursor = 'pointer';
+      
+      // Add click handler for remove icon
+      removeIcon.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        
+        // Get current live channels
+        const data = await chrome.storage.local.get('liveChannels');
+        const channels = data.liveChannels || [];
+        
+        // Remove this channel
+        const updatedChannels = channels.filter(ch => ch.url !== channel.url);
+        
+        // Update storage
+        await chrome.storage.local.set({ liveChannels: updatedChannels });
+        
+        // Remove channel from UI with animation
+        channelDiv.style.transition = 'opacity 0.3s ease';
+        channelDiv.style.opacity = '0';
+        setTimeout(() => {
+          channelDiv.remove();
+        }, 300);
+      });
+      
+      removeDiv.appendChild(removeIcon);
 
       // Add click handler for play button
       playBtn.addEventListener('click', async (e) => {
@@ -1772,7 +1801,7 @@ function loadLiveChannels() {
       // Assemble channel item
       channelDiv.appendChild(playBtn);
       channelDiv.appendChild(contentDiv);
-      channelDiv.appendChild(spacerDiv);
+      channelDiv.appendChild(removeDiv);
       channelsContainer.appendChild(channelDiv);
     });
 
