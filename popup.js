@@ -565,92 +565,16 @@ function initializeStandaloneFeatures() {
       const episodesContainer = document.createElement('div');
       episodesContainer.className = 'feed-episodes';
 
-      // Add header row
-      const header = document.createElement('div');
-      header.className = 'episode-header';
-      
-      const playHeader = document.createElement('div');
-      playHeader.className = 'header-play';
-      
-      const titleHeader = document.createElement('div');
-      titleHeader.className = 'header-title';
-      titleHeader.textContent = 'Episode';
-      
-      const completeHeader = document.createElement('div');
-      completeHeader.className = 'header-complete';
-      completeHeader.textContent = 'Complete';
-      
-      header.appendChild(playHeader);
-      header.appendChild(titleHeader);
-      header.appendChild(completeHeader);
-      episodesContainer.appendChild(header);
+      // Remove header row code and directly start adding episodes
+      feedContainer.appendChild(episodesContainer);
 
-      // Add episodes
-      feed.episodes.forEach(episode => {
-        const episodeDiv = document.createElement('div');
-        episodeDiv.className = 'audio-item';
-        
-        // Create play button
-        const playBtn = document.createElement('button');
-        playBtn.className = 'audio-control';
-        playBtn.textContent = '⏵';
-        playBtn.title = 'Play';
-
-        // Create episode content
-        const contentDiv = document.createElement('div');
-        contentDiv.className = 'audio-content';
-        
-        const titleDiv = document.createElement('div');
-        titleDiv.className = 'audio-title';
-        titleDiv.textContent = episode.title;
-        
-        const dateDiv = document.createElement('div');
-        dateDiv.className = 'audio-date';
-        dateDiv.textContent = 'Publication date: ' + episode.date;
-        
-        contentDiv.appendChild(titleDiv);
-        contentDiv.appendChild(dateDiv);
-
-        // Create mark played button
-        const markPlayedBtn = document.createElement('button');
-        markPlayedBtn.className = 'audio-control mark-played';
-        markPlayedBtn.textContent = '☐';
-        markPlayedBtn.title = 'Mark as played';
-
-        // Assemble episode
-        episodeDiv.appendChild(playBtn);
-        episodeDiv.appendChild(contentDiv);
-        episodeDiv.appendChild(markPlayedBtn);
-        episodesContainer.appendChild(episodeDiv);
-
-        // Add click handlers
-        playBtn.addEventListener('click', (e) => {
-          e.stopPropagation();
-          const allPlayBtns = document.querySelectorAll('.audio-control:not(.mark-played)');
-          allPlayBtns.forEach(btn => {
-            if (btn !== playBtn) btn.textContent = '⏵';
-          });
-          playBtn.textContent = playBtn.textContent === '⏵' ? '⏸' : '⏵';
-        });
-
-        markPlayedBtn.addEventListener('click', (e) => {
-          e.stopPropagation();
-          const isPlayed = markPlayedBtn.textContent === '☑';
-          markPlayedBtn.textContent = isPlayed ? '☐' : '☑';
-          markPlayedBtn.title = isPlayed ? 'Mark as played' : 'Mark as unplayed';
-          episodeDiv.classList.toggle('played');
-        });
-      });
-
-      // Add toggle behavior
+      // Add click handler for expand/collapse
       separator.addEventListener('click', () => {
         separator.classList.toggle('collapsed');
         episodesContainer.classList.toggle('collapsed');
         toggleIcon.textContent = separator.classList.contains('collapsed') ? '▶' : '▼';
       });
 
-      // Assemble feed section
-      feedContainer.appendChild(episodesContainer);
       podContent.appendChild(feedContainer);
     });
   }
@@ -1223,26 +1147,7 @@ function initializeExtensionFeatures() {
       const episodesContainer = document.createElement('div');
       episodesContainer.className = 'feed-episodes';
 
-      // Add header row
-      const header = document.createElement('div');
-      header.className = 'episode-header';
-      
-      const playHeader = document.createElement('div');
-      playHeader.className = 'header-play';
-      
-      const titleHeader = document.createElement('div');
-      titleHeader.className = 'header-title';
-      titleHeader.textContent = 'Episode';
-      
-      const completeHeader = document.createElement('div');
-      completeHeader.className = 'header-complete';
-      completeHeader.textContent = 'Complete';
-      
-      header.appendChild(playHeader);
-      header.appendChild(titleHeader);
-      header.appendChild(completeHeader);
-      episodesContainer.appendChild(header);
-
+      // Remove header row code and directly start adding episodes
       feedContainer.appendChild(episodesContainer);
 
       // Add click handler for expand/collapse
