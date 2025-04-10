@@ -392,4 +392,24 @@ audio::-webkit-media-controls-toggle-closed-captions-button {
 .channel-content {
   position: relative;
   margin-bottom: 8px;
+}
+
+.podcast-icons {
+  display: flex;
+  gap: 8px;
+  margin-right: 4px;
+}
+
+.podcast-icon {
+  cursor: pointer;
+  color: #666;
+  font-size: 14px;
+  padding: 2px 4px;
+  border-radius: 3px;
+  transition: all 0.2s ease;
+}
+
+.podcast-icon:hover {
+  color: #1976d2;
+  background-color: #e3f2fd;
 } 

@@ -291,11 +291,203 @@ function initializeStandaloneFeatures() {
       toggleIcon.className = 'toggle-icon';
       toggleIcon.textContent = '▼';
       
-      const titleText = document.createElement('span');
+      const titleText = document.createElement('div');
+      titleText.className = 'audio-title';  // Use same class as episode titles for consistent bold styling
       titleText.textContent = feed.title;
       
+      const infoText = document.createElement('div');
+      infoText.className = 'audio-date';  // Use same class as episode dates for consistent styling
+      const dateStr = feed.episodes[0] ? feed.episodes[0].date : '';
+      infoText.textContent = `${feed.episodes.length} episodes • ${dateStr}`;
+      
+      const titleContainer = document.createElement('div');
+      titleContainer.className = 'audio-content';  // Use same container class as episodes
+      titleContainer.appendChild(titleText);
+      titleContainer.appendChild(infoText);
+      
+      // Create icons container
+      const iconsContainer = document.createElement('div');
+      iconsContainer.className = 'podcast-icons';
+      iconsContainer.style.marginLeft = 'auto';  // Push icons to the right
+      
+      // Info icon
+      const infoIcon = document.createElement('span');
+      infoIcon.className = 'podcast-icon';
+      infoIcon.textContent = 'ℹ';
+      infoIcon.title = 'More information';
+      infoIcon.addEventListener('click', (e) => {
+        e.stopPropagation();  // Prevent toggle action
+        // TODO: Show more information about the podcast
+      });
+      
+      // Refresh icon
+      const refreshIcon = document.createElement('span');
+      refreshIcon.className = 'podcast-icon';
+      refreshIcon.textContent = '↻';
+      refreshIcon.title = 'Refresh feed';
+      refreshIcon.addEventListener('click', async (e) => {
+        e.stopPropagation();  // Prevent toggle action
+        
+        // Show loading state
+        refreshIcon.style.opacity = '0.5';
+        refreshIcon.style.cursor = 'wait';
+        
+        try {
+          // Re-fetch and parse this specific feed
+          const result = await tryParseRss(feedUrl);
+          if (result.success) {
+            // Clear existing episodes
+            episodesContainer.innerHTML = '';
+            
+            // Re-add the header row
+            const header = document.createElement('div');
+            header.className = 'episode-header';
+            header.innerHTML = `
+              <div class="header-play"></div>
+              <div class="header-title">Episode</div>
+              <div class="header-complete">Complete</div>
+            `;
+            episodesContainer.appendChild(header);
+            
+            // Get episodes limit
+            const limit = await new Promise(resolve => {
+              chrome.storage.local.get('audioLimit', (data) => {
+                resolve(parseInt(data.audioLimit) || 3);
+              });
+            });
+            
+            // Get played episodes
+            const playedData = await chrome.storage.local.get('playedEpisodes');
+            const playedEpisodes = playedData.playedEpisodes || {};
+            const playedForFeed = playedEpisodes[feedUrl] || [];
+            
+            // Process episodes
+            const items = Array.from(result.xmlDoc.querySelectorAll('item'));
+            const audioItems = items.filter(item => 
+              item.querySelector('enclosure')?.getAttribute('type') === 'audio/mpeg'
+            );
+            
+            // Update episode count and date in the header
+            const episodeCount = audioItems.length;
+            let feedLatestDate = null;
+            audioItems.forEach(item => {
+              const pubDate = item.querySelector('pubDate')?.textContent;
+              if (pubDate) {
+                const date = new Date(pubDate);
+                if (!feedLatestDate || date > feedLatestDate) {
+                  feedLatestDate = date;
+                }
+              }
+            });
+            
+            // Update the info text
+            const dateStr = feedLatestDate ? feedLatestDate.toLocaleDateString('en-US', { 
+              month: 'short', 
+              day: 'numeric', 
+              year: 'numeric' 
+            }) : '';
+            infoText.textContent = `${episodeCount} episodes • ${dateStr}`;
+            
+            // Show episodes
+            const playedInLimit = audioItems.slice(0, limit).filter(item => {
+              const audioUrl = item.querySelector('enclosure')?.getAttribute('url');
+              return audioUrl && playedForFeed.includes(audioUrl);
+            }).length;
+            
+            const itemsToShow = audioItems.slice(0, limit + playedInLimit);
+            
+            for (const item of itemsToShow) {
+              const title = item.querySelector('title')?.textContent || 'Untitled';
+              const audioUrl = item.querySelector('enclosure')?.getAttribute('url');
+              const pubDate = item.querySelector('pubDate')?.textContent;
+              
+              if (!audioUrl) continue;
+              
+              const div = document.createElement('div');
+              div.className = 'audio-item';
+              
+              const contentDiv = document.createElement('div');
+              contentDiv.className = 'audio-content';
+              
+              const titleSpan = document.createElement('div');
+              titleSpan.className = 'audio-title';
+              titleSpan.textContent = title;
+              contentDiv.appendChild(titleSpan);
+              
+              if (pubDate) {
+                const dateDiv = document.createElement('div');
+                dateDiv.className = 'audio-date';
+                const date = new Date(pubDate);
+                dateDiv.textContent = 'Publication date: ' + date.toLocaleDateString('en-US', {
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric'
+                });
+                contentDiv.appendChild(dateDiv);
+              }
+              
+              const isPlayed = playedForFeed.includes(audioUrl);
+              if (isPlayed) {
+                div.classList.add('played');
+              }
+              
+              const playButton = createPlayButton(audioUrl, title);
+              div.appendChild(playButton);
+              div.appendChild(contentDiv);
+              
+              const markPlayedButton = createMarkPlayedButton(audioUrl, title, feedUrl, isPlayed);
+              div.appendChild(markPlayedButton);
+              
+              episodesContainer.appendChild(div);
+            }
+          }
+        } catch (error) {
+          console.error('Error refreshing feed:', error);
+        } finally {
+          // Reset loading state
+          refreshIcon.style.opacity = '1';
+          refreshIcon.style.cursor = 'pointer';
+        }
+      });
+      
+      // Remove icon
+      const removeIcon = document.createElement('span');
+      removeIcon.className = 'podcast-icon';
+      removeIcon.textContent = '×';
+      removeIcon.title = 'Remove from player';
+      removeIcon.addEventListener('click', async (e) => {
+        e.stopPropagation();  // Prevent toggle action
+        
+        // Get current feeds
+        const data = await new Promise(resolve => {
+          chrome.storage.local.get('feeds', (data) => resolve(data));
+        });
+        
+        // Remove this feed
+        const feeds = data.feeds || [];
+        const updatedFeeds = feeds.filter(f => f !== feedUrl);
+        
+        // Update storage
+        await new Promise(resolve => {
+          chrome.storage.local.set({ feeds: updatedFeeds }, resolve);
+        });
+        
+        // Remove feed container from UI with animation
+        feedContainer.style.transition = 'opacity 0.3s ease';
+        feedContainer.style.opacity = '0';
+        setTimeout(() => {
+          feedContainer.remove();
+        }, 300);
+      });
+      
+      // Add icons to container
+      iconsContainer.appendChild(infoIcon);
+      iconsContainer.appendChild(refreshIcon);
+      iconsContainer.appendChild(removeIcon);
+      
       separator.appendChild(toggleIcon);
-      separator.appendChild(titleText);
+      separator.appendChild(titleContainer);
+      separator.appendChild(iconsContainer);
       feedContainer.appendChild(separator);
 
       // Create episodes container
@@ -686,12 +878,203 @@ function initializeExtensionFeatures() {
       toggleIcon.className = 'toggle-icon';
       toggleIcon.textContent = '▼';
       
-      const titleText = document.createElement('span');
+      const titleText = document.createElement('div');
+      titleText.className = 'audio-title';  // Use same class as episode titles for consistent bold styling
+      titleText.textContent = feedTitle;
+      
+      const infoText = document.createElement('div');
+      infoText.className = 'audio-date';  // Use same class as episode dates for consistent styling
       const dateStr = feedLatestDate ? feedLatestDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
-      titleText.textContent = `${feedTitle} (${episodeCount}) ${dateStr}`;
+      infoText.textContent = `${episodeCount} episodes • ${dateStr}`;
+      
+      const titleContainer = document.createElement('div');
+      titleContainer.className = 'audio-content';  // Use same container class as episodes
+      titleContainer.appendChild(titleText);
+      titleContainer.appendChild(infoText);
+      
+      // Create icons container
+      const iconsContainer = document.createElement('div');
+      iconsContainer.className = 'podcast-icons';
+      iconsContainer.style.marginLeft = 'auto';  // Push icons to the right
+      
+      // Info icon
+      const infoIcon = document.createElement('span');
+      infoIcon.className = 'podcast-icon';
+      infoIcon.textContent = 'ℹ';
+      infoIcon.title = 'More information';
+      infoIcon.addEventListener('click', (e) => {
+        e.stopPropagation();  // Prevent toggle action
+        // TODO: Show more information about the podcast
+      });
+      
+      // Refresh icon
+      const refreshIcon = document.createElement('span');
+      refreshIcon.className = 'podcast-icon';
+      refreshIcon.textContent = '↻';
+      refreshIcon.title = 'Refresh feed';
+      refreshIcon.addEventListener('click', async (e) => {
+        e.stopPropagation();  // Prevent toggle action
+        
+        // Show loading state
+        refreshIcon.style.opacity = '0.5';
+        refreshIcon.style.cursor = 'wait';
+        
+        try {
+          // Re-fetch and parse this specific feed
+          const result = await tryParseRss(feedUrl);
+          if (result.success) {
+            // Clear existing episodes
+            episodesContainer.innerHTML = '';
+            
+            // Re-add the header row
+            const header = document.createElement('div');
+            header.className = 'episode-header';
+            header.innerHTML = `
+              <div class="header-play"></div>
+              <div class="header-title">Episode</div>
+              <div class="header-complete">Complete</div>
+            `;
+            episodesContainer.appendChild(header);
+            
+            // Get episodes limit
+            const limit = await new Promise(resolve => {
+              chrome.storage.local.get('audioLimit', (data) => {
+                resolve(parseInt(data.audioLimit) || 3);
+              });
+            });
+            
+            // Get played episodes
+            const playedData = await chrome.storage.local.get('playedEpisodes');
+            const playedEpisodes = playedData.playedEpisodes || {};
+            const playedForFeed = playedEpisodes[feedUrl] || [];
+            
+            // Process episodes
+            const items = Array.from(result.xmlDoc.querySelectorAll('item'));
+            const audioItems = items.filter(item => 
+              item.querySelector('enclosure')?.getAttribute('type') === 'audio/mpeg'
+            );
+            
+            // Update episode count and date in the header
+            const episodeCount = audioItems.length;
+            let feedLatestDate = null;
+            audioItems.forEach(item => {
+              const pubDate = item.querySelector('pubDate')?.textContent;
+              if (pubDate) {
+                const date = new Date(pubDate);
+                if (!feedLatestDate || date > feedLatestDate) {
+                  feedLatestDate = date;
+                }
+              }
+            });
+            
+            // Update the info text
+            const dateStr = feedLatestDate ? feedLatestDate.toLocaleDateString('en-US', { 
+              month: 'short', 
+              day: 'numeric', 
+              year: 'numeric' 
+            }) : '';
+            infoText.textContent = `${episodeCount} episodes • ${dateStr}`;
+            
+            // Show episodes
+            const playedInLimit = audioItems.slice(0, limit).filter(item => {
+              const audioUrl = item.querySelector('enclosure')?.getAttribute('url');
+              return audioUrl && playedForFeed.includes(audioUrl);
+            }).length;
+            
+            const itemsToShow = audioItems.slice(0, limit + playedInLimit);
+            
+            for (const item of itemsToShow) {
+              const title = item.querySelector('title')?.textContent || 'Untitled';
+              const audioUrl = item.querySelector('enclosure')?.getAttribute('url');
+              const pubDate = item.querySelector('pubDate')?.textContent;
+              
+              if (!audioUrl) continue;
+              
+              const div = document.createElement('div');
+              div.className = 'audio-item';
+              
+              const contentDiv = document.createElement('div');
+              contentDiv.className = 'audio-content';
+              
+              const titleSpan = document.createElement('div');
+              titleSpan.className = 'audio-title';
+              titleSpan.textContent = title;
+              contentDiv.appendChild(titleSpan);
+              
+              if (pubDate) {
+                const dateDiv = document.createElement('div');
+                dateDiv.className = 'audio-date';
+                const date = new Date(pubDate);
+                dateDiv.textContent = 'Publication date: ' + date.toLocaleDateString('en-US', {
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric'
+                });
+                contentDiv.appendChild(dateDiv);
+              }
+              
+              const isPlayed = playedForFeed.includes(audioUrl);
+              if (isPlayed) {
+                div.classList.add('played');
+              }
+              
+              const playButton = createPlayButton(audioUrl, title);
+              div.appendChild(playButton);
+              div.appendChild(contentDiv);
+              
+              const markPlayedButton = createMarkPlayedButton(audioUrl, title, feedUrl, isPlayed);
+              div.appendChild(markPlayedButton);
+              
+              episodesContainer.appendChild(div);
+            }
+          }
+        } catch (error) {
+          console.error('Error refreshing feed:', error);
+        } finally {
+          // Reset loading state
+          refreshIcon.style.opacity = '1';
+          refreshIcon.style.cursor = 'pointer';
+        }
+      });
+      
+      // Remove icon
+      const removeIcon = document.createElement('span');
+      removeIcon.className = 'podcast-icon';
+      removeIcon.textContent = '×';
+      removeIcon.title = 'Remove from player';
+      removeIcon.addEventListener('click', async (e) => {
+        e.stopPropagation();  // Prevent toggle action
+        
+        // Get current feeds
+        const data = await new Promise(resolve => {
+          chrome.storage.local.get('feeds', (data) => resolve(data));
+        });
+        
+        // Remove this feed
+        const feeds = data.feeds || [];
+        const updatedFeeds = feeds.filter(f => f !== feedUrl);
+        
+        // Update storage
+        await new Promise(resolve => {
+          chrome.storage.local.set({ feeds: updatedFeeds }, resolve);
+        });
+        
+        // Remove feed container from UI with animation
+        feedContainer.style.transition = 'opacity 0.3s ease';
+        feedContainer.style.opacity = '0';
+        setTimeout(() => {
+          feedContainer.remove();
+        }, 300);
+      });
+      
+      // Add icons to container
+      iconsContainer.appendChild(infoIcon);
+      iconsContainer.appendChild(refreshIcon);
+      iconsContainer.appendChild(removeIcon);
       
       separator.appendChild(toggleIcon);
-      separator.appendChild(titleText);
+      separator.appendChild(titleContainer);
+      separator.appendChild(iconsContainer);
       feedContainer.appendChild(separator);
 
       // Create episodes container
