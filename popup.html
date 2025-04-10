@@ -19,26 +19,8 @@
   </div>
 
   <div class="player-container">
-    <!-- Hidden audio element -->
-    <audio id="player" preload="none"></audio>
-    
-    <!-- Minimal control panel -->
-    <div class="minimal-controls">
-      <div class="volume-control">
-        <button id="muteButton" class="control-btn" title="Mute">🔊</button>
-        <input type="range" id="volumeSlider" min="0" max="100" value="100" class="slider">
-      </div>
-      <div class="speed-control">
-        <select id="speedSelect" class="speed-select" title="Playback speed">
-          <option value="0.5">0.5×</option>
-          <option value="0.75">0.75×</option>
-          <option value="1" selected>1×</option>
-          <option value="1.25">1.25×</option>
-          <option value="1.5">1.5×</option>
-          <option value="2">2×</option>
-        </select>
-      </div>
-    </div>
+    <!-- Main audio player with native controls -->
+    <audio id="player" controls preload="none"></audio>
     <div id="nowPlaying" class="now-playing"></div>
   </div>
 

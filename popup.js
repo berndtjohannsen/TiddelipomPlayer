@@ -1,13 +1,17 @@
 // Global variables
 let currentlyPlayingUrl = null;
 let playerEventsAdded = false;
+let isSeekingManually = false;
+let isRadioStream = false;
 
 // Format time helper function
 function formatTime(seconds) {
-  if (isNaN(seconds)) return '0:00';
+  if (!seconds || isNaN(seconds)) return '0:00';
+  
   const hrs = Math.floor(seconds / 3600);
   const mins = Math.floor((seconds % 3600) / 60);
   const secs = Math.floor(seconds % 60);
+  
   if (hrs > 0) {
     return `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   }
@@ -22,211 +26,86 @@ if (document.readyState === 'loading') {
 }
 
 function initializePopup() {
-  // Initialize UI elements
-  const channelList = document.getElementById('channelList');
-  const audioList = document.getElementById('audioList');
   const player = document.getElementById('player');
-  const volumeSlider = document.getElementById('volumeSlider');
-  const muteButton = document.getElementById('muteButton');
-  const speedSelect = document.getElementById('speedSelect');
   const nowPlaying = document.getElementById('nowPlaying');
+  const playerContainer = document.querySelector('.player-container');
 
-  // Volume control
-  volumeSlider.addEventListener('input', () => {
-    const volume = volumeSlider.value / 100;
-    player.volume = volume;
-    muteButton.textContent = volume === 0 ? '🔈' : volume < 0.5 ? '🔉' : '🔊';
-    player.muted = false;
-  });
+  // Make sure player is visible and has controls
+  player.style.display = 'block';
+  player.controls = true;
+  player.defaultPlaybackRate = 1.0;  // Set default playback rate
+  player.preservesPitch = true;      // Enable pitch preservation for all streams
 
-  // Mute button
-  muteButton.addEventListener('click', () => {
-    player.muted = !player.muted;
-    muteButton.textContent = player.muted ? '🔈' : 
-      player.volume < 0.5 ? '🔉' : '🔊';
-  });
-
-  // Speed control
-  speedSelect.addEventListener('change', () => {
-    player.playbackRate = parseFloat(speedSelect.value);
-  });
-
-  // Initialize controls with player's current state
-  player.addEventListener('loadedmetadata', () => {
-    volumeSlider.value = player.volume * 100;
-    muteButton.textContent = player.muted ? '🔈' : 
-      player.volume < 0.5 ? '🔉' : '🔊';
-    speedSelect.value = player.playbackRate.toString();
-
-    // Update progress display if playing something
-    if (currentlyPlayingUrl) {
-      updateProgressDisplay(currentlyPlayingUrl);
-    }
-  });
-
-  // Add progress tracking
-  player.addEventListener('timeupdate', () => {
-    if (currentlyPlayingUrl) {
-      updateProgressDisplay(currentlyPlayingUrl);
-    }
-  });
-
-  // Save progress on pause
-  player.addEventListener('pause', async () => {
-    if (currentlyPlayingUrl) {
-      // Update progress display one final time
-      updateProgressDisplay(currentlyPlayingUrl);
-
-      // Save progress
-      const progress = {
-        currentTime: player.currentTime,
-        duration: player.duration,
-        lastPlayed: new Date().toISOString()
-      };
-      
-      try {
-        const progressData = await chrome.storage.local.get('episodeProgress') || {};
-        const allProgress = progressData.episodeProgress || {};
-        allProgress[currentlyPlayingUrl] = progress;
-        await chrome.storage.local.set({ episodeProgress: allProgress });
-      } catch (err) {
-        console.error('Failed to save progress:', err);
+  // Handle content type detection
+  player.addEventListener('loadstart', () => {
+    // Check if URL contains common streaming indicators
+    isRadioStream = player.src.includes('.m3u8') || 
+                    player.src.includes('.m3u') ||
+                    player.src.includes('stream') ||
+                    player.src.includes('live');
+    
+    if (isRadioStream) {
+      playerContainer.classList.add('radio');
+      // Only append (LIVE) if it's not already there
+      if (!nowPlaying.textContent.includes('(LIVE)')) {
+        nowPlaying.textContent = nowPlaying.textContent + ' (LIVE)';
       }
+    } else {
+      playerContainer.classList.remove('radio');
     }
   });
 
-  // Set version number from manifest
-  const versionElement = document.querySelector('.app-version');
-  if (versionElement) {
-    const manifest = chrome.runtime.getManifest();
-    versionElement.textContent = `v${manifest.version}`;
-  }
-
-  // Check if we're in extension mode
-  const isExtension = typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.id;
-
-  if (!isExtension) {
-    // Only try to resize window in standalone mode
-    try {
-      // Set initial size
-      window.resizeTo(450, 600);
-      
-      // Force minimum width
-      if (window.outerWidth < 450) {
-        window.resizeTo(450, window.outerHeight);
-      }
-
-      // Prevent resizing below minimum width
-      let resizeTimeout;
-      window.addEventListener('resize', () => {
-        clearTimeout(resizeTimeout);
-        resizeTimeout = setTimeout(() => {
-          if (window.outerWidth < 450) {
-            window.resizeTo(450, window.outerHeight);
-          }
-        }, 100);
-      });
-    } catch (e) {
-      console.log('Window resize not supported');
+  // Force enable playback rate functionality for all streams
+  player.addEventListener('canplay', () => {
+    // Ensure playback rate control is available
+    if (player.playbackRate !== 1.0) {
+      player.playbackRate = 1.0;  // Reset to default if needed
     }
-  }
-
-  // Initialize section toggle behavior
-  function initializeSectionToggles() {
-    const sections = document.querySelectorAll('.section');
-    sections.forEach(section => {
-      const header = section.querySelector('.section-header');
-      const content = section.querySelector('.section-content');
-      const toggleIcon = header.querySelector('.toggle-icon');
-
-      header.addEventListener('click', () => {
-        content.style.display = content.style.display === 'none' ? 'block' : 'none';
-        toggleIcon.textContent = content.style.display === 'none' ? '▶' : '▼';
-        toggleIcon.style.transform = content.style.display === 'none' ? 'rotate(-90deg)' : 'rotate(0)';
-      });
+    // Force the playback rate to be changeable
+    Object.defineProperty(player, 'playbackRate', {
+      writable: true,
+      enumerable: true
     });
-  }
+  });
+
+  // Handle time updates for podcasts
+  player.addEventListener('timeupdate', () => {
+    if (!isRadioStream && player.duration) {
+      // Update any episode progress if this is a podcast
+      updateEpisodeProgress(player.currentTime, player.duration);
+    }
+  });
 
   // Initialize sections
   initializeSectionToggles();
-
+  
+  // Check if we're in extension mode
+  const isExtension = typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.id;
+  
   if (isExtension) {
-    // Extension-specific code
+    // Extension-specific initialization
     initializeExtensionFeatures();
   } else {
-    // Standalone-specific code
+    // Standalone-specific initialization
     initializeStandaloneFeatures();
   }
+  
+  // Load live channels
+  loadLiveChannels();
+}
 
-  // Load live channels when configuration changes
-  if (isExtension) {
-    chrome.runtime.onMessage.addListener((message) => {
-      if (message.type === 'configImported') {
-        console.log('Config imported, reloading live channels...');
-        loadLiveChannels();
-      }
-    });
+// Initialize section toggle behavior
+function initializeSectionToggles() {
+  const sections = document.querySelectorAll('.section');
+  sections.forEach(section => {
+    const header = section.querySelector('.section-header');
+    const content = section.querySelector('.section-content');
+    const toggleIcon = header.querySelector('.toggle-icon');
 
-    // Initial load of live channels
-    console.log('Initial load of live channels...');
-    loadLiveChannels();
-  }
-
-  // Initialize controls
-  document.addEventListener('DOMContentLoaded', () => {
-    // Initialize volume and speed controls
-    const volumeSlider = document.getElementById('volumeSlider');
-    const muteButton = document.getElementById('muteButton');
-    const speedSelect = document.getElementById('speedSelect');
-
-    // Volume control
-    volumeSlider.addEventListener('input', () => {
-      const volume = volumeSlider.value / 100;
-      player.volume = volume;
-      muteButton.textContent = volume === 0 ? '🔈' : volume < 0.5 ? '🔉' : '🔊';
-      player.muted = false;
-    });
-
-    // Mute button
-    muteButton.addEventListener('click', () => {
-      player.muted = !player.muted;
-      muteButton.textContent = player.muted ? '🔈' : 
-        player.volume < 0.5 ? '🔉' : '🔊';
-    });
-
-    // Speed control
-    speedSelect.addEventListener('change', () => {
-      player.playbackRate = parseFloat(speedSelect.value);
-    });
-
-    // Initialize controls with player's current state
-    player.addEventListener('loadedmetadata', () => {
-      volumeSlider.value = player.volume * 100;
-      muteButton.textContent = player.muted ? '🔈' : 
-        player.volume < 0.5 ? '🔉' : '🔊';
-      speedSelect.value = player.playbackRate.toString();
-    });
-
-    // Update progress display for the current episode
-    function updateProgressDisplay(url) {
-      if (!url) return;
-      
-      const progressSpan = document.querySelector(`[data-url="${url}"]`)
-        ?.closest('.audio-item')
-        ?.querySelector('.audio-progress');
-        
-      if (progressSpan) {
-        const currentTime = formatTime(player.currentTime);
-        const totalTime = formatTime(player.duration);
-        progressSpan.textContent = `${currentTime}/${totalTime}`;
-      }
-    }
-
-    // Add timeupdate listener to update progress
-    player.addEventListener('timeupdate', () => {
-      if (currentlyPlayingUrl) {
-        updateProgressDisplay(currentlyPlayingUrl);
-      }
+    header.addEventListener('click', () => {
+      content.style.display = content.style.display === 'none' ? 'block' : 'none';
+      toggleIcon.textContent = content.style.display === 'none' ? '▶' : '▼';
+      toggleIcon.style.transform = content.style.display === 'none' ? 'rotate(-90deg)' : 'rotate(0)';
     });
   });
 }
@@ -762,6 +641,11 @@ function initializeExtensionFeatures() {
 
       if (playBtn.textContent === '⏵') {
         try {
+          // Save current progress before switching if we're playing something else
+          if (player.src && player.src !== url && player.currentTime > 0) {
+            await saveEpisodeProgress(player.src, player.currentTime, player.duration);
+          }
+
           // Load saved progress before starting playback
           const progressData = await chrome.storage.local.get('episodeProgress');
           const savedProgress = progressData.episodeProgress?.[url];
@@ -781,6 +665,19 @@ function initializeExtensionFeatures() {
           playBtn.textContent = '⏸';
           currentlyPlayingUrl = url;
           nowPlaying.textContent = title;
+
+          // Update seek slider if this is a podcast
+          if (!isRadioStream) {
+            const seekSlider = document.getElementById('seekSlider');
+            const currentTimeSpan = document.getElementById('currentTime');
+            const durationSpan = document.getElementById('duration');
+            if (seekSlider && currentTimeSpan && durationSpan) {
+              const percent = (player.currentTime / player.duration) * 100;
+              seekSlider.value = percent;
+              currentTimeSpan.textContent = formatTime(player.currentTime);
+              durationSpan.textContent = formatTime(player.duration);
+            }
+          }
         } catch (err) {
           console.error('Playback failed:', err);
           playBtn.textContent = '⏵';
@@ -789,17 +686,7 @@ function initializeExtensionFeatures() {
         }
       } else {
         // Pausing playback - save current progress
-        const progress = {
-          currentTime: player.currentTime,
-          duration: player.duration,
-          lastPlayed: new Date().toISOString()
-        };
-        
-        const progressData = await chrome.storage.local.get('episodeProgress');
-        const allProgress = progressData.episodeProgress || {};
-        allProgress[url] = progress;
-        await chrome.storage.local.set({ episodeProgress: allProgress });
-        
+        await saveEpisodeProgress(url, player.currentTime, player.duration);
         player.pause();
         playBtn.textContent = '⏵';
         currentlyPlayingUrl = null;
@@ -1639,20 +1526,40 @@ function handlePlaybackError(err, contentDiv, playBtn) {
     return;  // Exit gracefully if contentDiv is not available
   }
 
+  console.log('Playback error details:', {
+    name: err.name,
+    message: err.message,
+    code: err.code,
+    online: navigator.onLine
+  });
+
   playBtn.textContent = '⏵';
   
   let errorMessage = 'Could not play this audio stream';
+  
   if (err instanceof DOMException) {
-    if (!navigator.onLine) {
-      errorMessage = 'Cannot play audio - please check your internet connection';
-    } else if (err.name === 'NotSupportedError') {
-      errorMessage = 'This audio format is not supported';
-    } else if (err.name === 'NotAllowedError') {
-      errorMessage = 'Playback was blocked by your browser';
-    } else if (err.name === 'AbortError') {
-      errorMessage = 'Playback was interrupted';
-    } else if (err.name === 'NetworkError') {
-      errorMessage = 'Cannot play audio - please check your internet connection';
+    switch (err.name) {
+      case 'AbortError':
+        errorMessage = 'Playback was interrupted';
+        break;
+      case 'NetworkError':
+        errorMessage = 'Network error - please check your connection';
+        break;
+      case 'NotAllowedError':
+        errorMessage = 'Playback was blocked by your browser';
+        break;
+      case 'NotSupportedError':
+        errorMessage = 'This audio format is not supported';
+        break;
+      case 'SecurityError':
+        errorMessage = 'Access to the audio was blocked for security reasons';
+        break;
+      default:
+        if (!navigator.onLine) {
+          errorMessage = 'Cannot play audio - please check your internet connection';
+        } else {
+          errorMessage = `Playback error: ${err.message || err.name}`;
+        }
     }
   }
   
@@ -1670,10 +1577,15 @@ function handlePlaybackError(err, contentDiv, playBtn) {
 
 // When setting up audio player event listeners
 player.addEventListener('error', (e) => {
-  const channelContent = player.closest('.channel-content');
+  const error = e.target.error || e.error;
+  const channelContent = e.target.closest('.channel-content') || 
+                        document.querySelector('.channel-content');
   const playBtn = channelContent?.querySelector('.audio-control');
+  
   if (channelContent && playBtn) {
-    handlePlaybackError(e.error || new Error('Playback failed'), channelContent, playBtn);
+    handlePlaybackError(error || new Error('Unknown playback error'), channelContent, playBtn);
+  } else {
+    console.error('Playback error:', error);
   }
 });
 
@@ -1842,5 +1754,121 @@ function loadLiveChannels() {
     });
 
     channelContent.appendChild(channelsContainer);
+  });
+}
+
+// Function to update episode progress in the list
+function updateEpisodeProgress(currentTime, duration) {
+  if (!currentTime || !duration) return;
+  
+  const currentEpisodeUrl = player.src;
+  const episodeItems = document.querySelectorAll('.audio-item');
+  
+  episodeItems.forEach(async (item) => {
+    const playBtn = item.querySelector('.audio-control');
+    const progressEl = item.querySelector('.audio-progress');
+    if (!playBtn || !progressEl) return;
+
+    if (playBtn.dataset.url === currentEpisodeUrl) {
+      // Update currently playing episode
+      const currentTimeStr = formatTime(currentTime);
+      const durationStr = formatTime(duration);
+      progressEl.textContent = `${currentTimeStr} / ${durationStr}`;
+    } else {
+      // For non-playing episodes, load their saved progress
+      try {
+        const data = await chrome.storage.local.get('episodeProgress');
+        const progress = data.episodeProgress?.[playBtn.dataset.url];
+        if (progress?.duration) {  // Only update if we have valid duration
+          const savedTimeStr = formatTime(progress.currentTime);
+          const savedDurationStr = formatTime(progress.duration);
+          progressEl.textContent = `${savedTimeStr} / ${savedDurationStr}`;
+        }
+      } catch (err) {
+        console.error('Error loading progress:', err);
+      }
+    }
+  });
+}
+
+// Function to save episode progress
+async function saveEpisodeProgress(url, currentTime, duration) {
+  if (!url || !duration) return;
+  
+  try {
+    const data = await chrome.storage.local.get('episodeProgress');
+    const allProgress = data.episodeProgress || {};
+    allProgress[url] = {
+      currentTime,
+      duration,
+      lastPlayed: new Date().toISOString()
+    };
+    await chrome.storage.local.set({ episodeProgress: allProgress });
+  } catch (err) {
+    console.error('Error saving progress:', err);
+  }
+}
+
+// Add this to the initializePopup function after player initialization
+function initializeSeekControl() {
+  const seekControl = document.getElementById('seekControl');
+  const seekSlider = document.getElementById('seekSlider');
+  const currentTimeSpan = document.getElementById('currentTime');
+  const durationSpan = document.getElementById('duration');
+  const playerContainer = document.querySelector('.player-container');
+
+  // Handle content type detection
+  player.addEventListener('loadstart', () => {
+    // Check if URL contains common streaming indicators
+    isRadioStream = player.src.includes('.m3u8') || 
+                    player.src.includes('.m3u') ||
+                    player.src.includes('stream') ||
+                    player.src.includes('live');
+    
+    if (isRadioStream) {
+      playerContainer.classList.add('radio');
+      seekControl.style.display = 'none';
+      nowPlaying.textContent = nowPlaying.textContent + ' (LIVE)';
+    } else {
+      playerContainer.classList.remove('radio');
+      seekControl.style.display = 'block';
+    }
+  });
+
+  // Update seek slider and time display during playback
+  player.addEventListener('timeupdate', () => {
+    if (!isRadioStream) {
+      const percent = (player.currentTime / player.duration) * 100;
+      seekSlider.value = percent;
+      currentTimeSpan.textContent = formatTime(player.currentTime);
+      durationSpan.textContent = formatTime(player.duration);
+    }
+  });
+
+  // Update duration when metadata is loaded
+  player.addEventListener('loadedmetadata', () => {
+    if (!isRadioStream) {
+      durationSpan.textContent = formatTime(player.duration);
+    }
+  });
+
+  // Handle manual seeking
+  seekSlider.addEventListener('mousedown', () => {
+    isSeekingManually = true;
+  });
+
+  seekSlider.addEventListener('input', () => {
+    if (!isRadioStream) {
+      const time = (seekSlider.value / 100) * player.duration;
+      currentTimeSpan.textContent = formatTime(time);
+    }
+  });
+
+  seekSlider.addEventListener('change', () => {
+    if (!isRadioStream) {
+      const time = (seekSlider.value / 100) * player.duration;
+      player.currentTime = time;
+      isSeekingManually = false;
+    }
   });
 }
