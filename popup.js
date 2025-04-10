@@ -317,7 +317,59 @@ function initializeStandaloneFeatures() {
       infoIcon.title = 'More information';
       infoIcon.addEventListener('click', (e) => {
         e.stopPropagation();  // Prevent toggle action
-        // TODO: Show more information about the podcast
+        
+        // Get feed information from the XML
+        const channelInfo = xmlDoc.querySelector('channel');
+        const description = channelInfo.querySelector('description')?.textContent || '';
+        const link = channelInfo.querySelector('link')?.textContent || '';
+        const language = channelInfo.querySelector('language')?.textContent || '';
+        const copyright = channelInfo.querySelector('copyright')?.textContent || '';
+        const lastBuildDate = channelInfo.querySelector('lastBuildDate')?.textContent || '';
+        
+        // Create popup content
+        const infoContent = document.createElement('div');
+        infoContent.className = 'feed-info-popup';
+        
+        // Add feed information (truncate description if too long)
+        const truncatedDesc = description.length > 200 ? description.substring(0, 200) + '...' : description;
+        
+        infoContent.innerHTML = `
+          <div class="feed-info-content">
+            <h3>${feedTitle}</h3>
+            <p>${truncatedDesc}</p>
+            ${link ? `<p><strong>Website:</strong> <a href="${link}" target="_blank">${link}</a></p>` : ''}
+            ${language ? `<p><strong>Language:</strong> ${language}</p>` : ''}
+            ${copyright ? `<p><strong>Copyright:</strong> ${copyright}</p>` : ''}
+            ${lastBuildDate ? `<p><strong>Last updated:</strong> ${new Date(lastBuildDate).toLocaleDateString()}</p>` : ''}
+          </div>
+        `;
+        
+        // Remove any existing popup
+        const existingPopup = document.querySelector('.feed-info-popup');
+        if (existingPopup) {
+          existingPopup.remove();
+        }
+        
+        // Add close button
+        const closeButton = document.createElement('button');
+        closeButton.className = 'feed-info-close';
+        closeButton.textContent = '×';
+        closeButton.addEventListener('click', (e) => {
+          e.stopPropagation();
+          infoContent.remove();
+        });
+        infoContent.insertBefore(closeButton, infoContent.firstChild);
+        
+        // Add popup to the feed container
+        feedContainer.appendChild(infoContent);
+        
+        // Close popup when clicking outside
+        document.addEventListener('click', function closePopup(e) {
+          if (!infoContent.contains(e.target)) {
+            infoContent.remove();
+            document.removeEventListener('click', closePopup);
+          }
+        });
       });
       
       // Refresh icon
@@ -904,7 +956,59 @@ function initializeExtensionFeatures() {
       infoIcon.title = 'More information';
       infoIcon.addEventListener('click', (e) => {
         e.stopPropagation();  // Prevent toggle action
-        // TODO: Show more information about the podcast
+        
+        // Get feed information from the XML
+        const channelInfo = xmlDoc.querySelector('channel');
+        const description = channelInfo.querySelector('description')?.textContent || '';
+        const link = channelInfo.querySelector('link')?.textContent || '';
+        const language = channelInfo.querySelector('language')?.textContent || '';
+        const copyright = channelInfo.querySelector('copyright')?.textContent || '';
+        const lastBuildDate = channelInfo.querySelector('lastBuildDate')?.textContent || '';
+        
+        // Create popup content
+        const infoContent = document.createElement('div');
+        infoContent.className = 'feed-info-popup';
+        
+        // Add feed information (truncate description if too long)
+        const truncatedDesc = description.length > 200 ? description.substring(0, 200) + '...' : description;
+        
+        infoContent.innerHTML = `
+          <div class="feed-info-content">
+            <h3>${feedTitle}</h3>
+            <p>${truncatedDesc}</p>
+            ${link ? `<p><strong>Website:</strong> <a href="${link}" target="_blank">${link}</a></p>` : ''}
+            ${language ? `<p><strong>Language:</strong> ${language}</p>` : ''}
+            ${copyright ? `<p><strong>Copyright:</strong> ${copyright}</p>` : ''}
+            ${lastBuildDate ? `<p><strong>Last updated:</strong> ${new Date(lastBuildDate).toLocaleDateString()}</p>` : ''}
+          </div>
+        `;
+        
+        // Remove any existing popup
+        const existingPopup = document.querySelector('.feed-info-popup');
+        if (existingPopup) {
+          existingPopup.remove();
+        }
+        
+        // Add close button
+        const closeButton = document.createElement('button');
+        closeButton.className = 'feed-info-close';
+        closeButton.textContent = '×';
+        closeButton.addEventListener('click', (e) => {
+          e.stopPropagation();
+          infoContent.remove();
+        });
+        infoContent.insertBefore(closeButton, infoContent.firstChild);
+        
+        // Add popup to the feed container
+        feedContainer.appendChild(infoContent);
+        
+        // Close popup when clicking outside
+        document.addEventListener('click', function closePopup(e) {
+          if (!infoContent.contains(e.target)) {
+            infoContent.remove();
+            document.removeEventListener('click', closePopup);
+          }
+        });
       });
       
       // Refresh icon
