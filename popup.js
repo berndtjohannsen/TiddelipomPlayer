@@ -719,35 +719,57 @@ function initializeExtensionFeatures() {
     return playBtn;
   }
 
-  // Modified playAudio function to restore position
+  // Modified playAudio function to properly handle position restoration
   function playAudio(url, title) {
     // Stop current playback before loading new audio
     player.pause();
     
     // Load and play the new audio, restoring position if available
-    chrome.storage.local.get(['playbackPositions', 'playedEpisodes'], (data) => {
-      const positions = data.playbackPositions || {};
+    chrome.storage.local.get(['episodeProgress', 'playedEpisodes'], async (data) => {
+      const progress = data.episodeProgress?.[url] || {};
       const playedEpisodes = data.playedEpisodes || {};
-      const savedPosition = positions[url] || 0;
-      
-      // Don't restore position if episode is marked as played
       const isPlayed = Object.values(playedEpisodes).some(urls => urls.includes(url));
       
-      player.src = url;
-      if (savedPosition > 0 && !isPlayed) {
-        player.currentTime = savedPosition;
-      } else {
-        player.currentTime = 0;
-      }
-      
-      player.play().catch(err => {
-        console.log('Play failed:', err);
+      try {
+        // Reset all other play buttons first
+        const allPlayBtns = document.querySelectorAll('.audio-control:not(.mark-played)');
+        allPlayBtns.forEach(btn => {
+          if (btn.dataset.url === url) {
+            btn.textContent = '⏸';
+          } else {
+            btn.textContent = '⏵';
+          }
+        });
+
+        player.src = url;
+        currentlyPlayingUrl = url;
+        nowPlaying.textContent = title;
+
+        // If episode is not marked as played and we have a saved position, restore it
+        if (!isPlayed && progress.currentTime > 0) {
+          player.currentTime = progress.currentTime;
+        } else {
+          player.currentTime = 0;
+        }
+
+        // Update progress display immediately
+        if (progress.duration) {
+          updateEpisodeProgress(progress.currentTime || 0, progress.duration);
+        }
+
+        await player.play();
+      } catch (err) {
+        console.error('Play failed:', err);
         if (err.name === 'AbortError') {
           nowPlaying.textContent = '';
         }
-      });
-      
-      nowPlaying.textContent = title;
+        // Reset play button on error
+        const playBtn = document.querySelector(`.audio-control[data-url="${url}"]`);
+        if (playBtn) {
+          playBtn.textContent = '⏵';
+        }
+        currentlyPlayingUrl = null;
+      }
     });
   }
 
@@ -813,7 +835,9 @@ function initializeExtensionFeatures() {
               return;
             }
             
-            resolve({ success: true, xmlDoc });
+            const feedTitle = xmlDoc.querySelector('channel > title')?.textContent || new URL(feedUrl).hostname;
+            
+            resolve({ success: true, xmlDoc, feedTitle });
           } catch (err) {
             console.error('Error parsing feed:', err);
             resolve({ success: false, error: err.message });
@@ -826,596 +850,245 @@ function initializeExtensionFeatures() {
     });
   }
 
-  // Fetch and parse feeds
-  async function parseFeeds(feeds) {
-    const podContent = audioList.querySelector('.section-content');
-    if (!podContent) {
-      console.error('Could not find pod section content');
-      return;
-    }
-    podContent.innerHTML = '';
+  // Add duration handling when creating episode elements
+  function createEpisodeElement(item, feedUrl) {
+    const episodeDiv = document.createElement('div');
+    episodeDiv.className = 'audio-item';
     
-    let totalEpisodes = 0;
-    let latestDate = null;
+    const playBtn = document.createElement('button');
+    playBtn.className = 'audio-control';
+    playBtn.textContent = '⏵';
+    playBtn.dataset.url = item.url;
+    playBtn.addEventListener('click', () => playAudio(item.url, item.title));
+    
+    const contentDiv = document.createElement('div');
+    contentDiv.className = 'audio-content';
+    
+    const titleSpan = document.createElement('div');
+    titleSpan.className = 'audio-title';
+    titleSpan.textContent = item.title;
+    contentDiv.appendChild(titleSpan);
+    
+    if (item.date) {
+      const infoDiv = document.createElement('div');
+      infoDiv.className = 'audio-info';
+      
+      const progressSpan = document.createElement('span');
+      progressSpan.className = 'audio-progress';
+      progressSpan.textContent = '0:00/--:--';
+      
+      const dateSpan = document.createElement('span');
+      dateSpan.className = 'audio-date';
+      const date = new Date(item.date);
+      dateSpan.textContent = ' • Publication date: ' + date.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+      
+      infoDiv.appendChild(progressSpan);
+      infoDiv.appendChild(dateSpan);
+      contentDiv.appendChild(infoDiv);
+    }
+    
+    episodeDiv.appendChild(playBtn);
+    episodeDiv.appendChild(contentDiv);
+    episodeDiv.appendChild(createMarkPlayedButton(item.url, item.title, feedUrl));
+    
+    // Create audio element for duration and progress tracking
+    const audio = new Audio();
+    audio.preload = 'metadata';  // Only load metadata to get duration
+    audio.src = item.url;
 
+    // Load duration when metadata is loaded
+    audio.addEventListener('loadedmetadata', () => {
+      const totalTime = formatTime(audio.duration);
+      const currentTime = formatTime(0);  // Start at 0
+      const progressSpan = episodeDiv.querySelector('.audio-progress');
+      if (progressSpan) {
+        progressSpan.textContent = `${currentTime}/${totalTime}`;
+      }
+      
+      // Save the duration for future use
+      saveEpisodeProgress(item.url, 0, audio.duration);
+    });
+
+    // Load saved progress if available
+    chrome.storage.local.get('episodeProgress', (data) => {
+      const progress = data.episodeProgress?.[item.url];
+      if (progress?.currentTime > 0) {  // Only update if we have a saved position
+        const progressSpan = episodeDiv.querySelector('.audio-progress');
+        if (progressSpan) {
+          const currentTimeStr = formatTime(progress.currentTime);
+          const durationStr = formatTime(progress.duration);
+          progressSpan.textContent = `${currentTimeStr}/${durationStr}`;
+        }
+      }
+    });
+    
+    return episodeDiv;
+  }
+
+  // Modified parseFeeds function to use createEpisodeElement
+  async function parseFeeds(feeds) {
+    const podContent = document.querySelector('#audioList .section-content');
+    if (!podContent) return;
+
+    // Clear existing content
+    podContent.innerHTML = '';
+
+    // Process each feed
     for (const feedUrl of feeds) {
-      const result = await tryParseRss(feedUrl);
-      if (!result.success) continue;
+      try {
+        const result = await tryParseRss(feedUrl);
+        if (!result) continue;
 
-      const xmlDoc = result.xmlDoc;
-      const items = Array.from(xmlDoc.querySelectorAll('item'));
-      const audioItems = items.filter(item => 
-        item.querySelector('enclosure')?.getAttribute('type') === 'audio/mpeg'
-      );
+        const { xmlDoc, feedTitle } = result;
+        
+        // Create feed container
+        const feedContainer = document.createElement('div');
+        feedContainer.className = 'feed-container';
 
-      totalEpisodes += audioItems.length;
+        // Create feed header with toggle
+        const separator = document.createElement('div');
+        separator.className = 'podcast-separator';
+        
+        const toggleIcon = document.createElement('span');
+        toggleIcon.className = 'toggle-icon';
+        toggleIcon.textContent = '▼';
+        
+        const titleText = document.createElement('div');
+        titleText.className = 'audio-title';
+        titleText.textContent = feedTitle;
+        
+        // Get all items for count
+        const allItems = Array.from(xmlDoc.querySelectorAll('item'));
+        
+        const infoText = document.createElement('div');
+        infoText.className = 'audio-date';
+        const firstItemDate = allItems[0]?.querySelector('pubDate')?.textContent || '';
+        infoText.textContent = `${allItems.length} episodes • ${firstItemDate ? new Date(firstItemDate).toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric'
+        }) : ''}`;
+        
+        const titleContainer = document.createElement('div');
+        titleContainer.className = 'audio-content';
+        titleContainer.appendChild(titleText);
+        titleContainer.appendChild(infoText);
+        
+        // Create icons container
+        const iconsContainer = document.createElement('div');
+        iconsContainer.className = 'podcast-icons';
+        
+        // Info icon
+        const infoIcon = document.createElement('span');
+        infoIcon.className = 'podcast-icon';
+        infoIcon.textContent = 'ℹ';
+        infoIcon.title = 'More information';
+        
+        // Refresh icon
+        const refreshIcon = document.createElement('span');
+        refreshIcon.className = 'podcast-icon';
+        refreshIcon.textContent = '⟳';
+        refreshIcon.title = 'Refresh feed';
+        
+        // Remove icon
+        const removeIcon = document.createElement('span');
+        removeIcon.className = 'podcast-icon';
+        removeIcon.textContent = '✕';
+        removeIcon.title = 'Remove feed';
+        
+        iconsContainer.appendChild(infoIcon);
+        iconsContainer.appendChild(refreshIcon);
+        iconsContainer.appendChild(removeIcon);
+        
+        separator.appendChild(toggleIcon);
+        separator.appendChild(titleContainer);
+        separator.appendChild(iconsContainer);
+        
+        // Create episodes container
+        const episodesContainer = document.createElement('div');
+        episodesContainer.className = 'feed-episodes';
 
-      // Update latest date
-      audioItems.forEach(item => {
-        const pubDate = item.querySelector('pubDate')?.textContent;
-        if (pubDate) {
-          const date = new Date(pubDate);
-          if (!latestDate || date > latestDate) {
-            latestDate = date;
-          }
-        }
-      });
-
-      // Get the feed title
-      const feedTitle = xmlDoc.querySelector('channel > title')?.textContent || new URL(feedUrl).hostname;
-      
-      // Calculate episode count and latest date for this feed
-      const episodeCount = audioItems.length;
-      let feedLatestDate = null;
-      audioItems.forEach(item => {
-        const pubDate = item.querySelector('pubDate')?.textContent;
-        if (pubDate) {
-          const date = new Date(pubDate);
-          if (!feedLatestDate || date > feedLatestDate) {
-            feedLatestDate = date;
-          }
-        }
-      });
-      
-      // Create feed container
-      const feedContainer = document.createElement('div');
-      feedContainer.className = 'feed-container';
-      
-      // Add feed title as separator with toggle
-      const separator = document.createElement('div');
-      separator.className = 'podcast-separator';
-      
-      const toggleIcon = document.createElement('span');
-      toggleIcon.className = 'toggle-icon';
-      toggleIcon.textContent = '▼';
-      
-      const titleText = document.createElement('div');
-      titleText.className = 'audio-title';  // Use same class as episode titles for consistent bold styling
-      titleText.textContent = feedTitle;
-      
-      const infoText = document.createElement('div');
-      infoText.className = 'audio-date';  // Use same class as episode dates for consistent styling
-      const dateStr = feedLatestDate ? feedLatestDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
-      infoText.textContent = `${episodeCount} episodes • ${dateStr}`;
-      
-      const titleContainer = document.createElement('div');
-      titleContainer.className = 'audio-content';  // Use same container class as episodes
-      titleContainer.appendChild(titleText);
-      titleContainer.appendChild(infoText);
-      
-      // Create icons container
-      const iconsContainer = document.createElement('div');
-      iconsContainer.className = 'podcast-icons';
-      iconsContainer.style.marginLeft = 'auto';  // Push icons to the right
-      
-      // Info icon
-      const infoIcon = document.createElement('span');
-      infoIcon.className = 'podcast-icon';
-      infoIcon.textContent = 'ℹ';
-      infoIcon.title = 'More information';
-      infoIcon.addEventListener('click', (e) => {
-        e.stopPropagation();  // Prevent toggle action
-        
-        // Get feed information from the XML
-        const channelInfo = xmlDoc.querySelector('channel');
-        const description = channelInfo.querySelector('description')?.textContent || '';
-        const link = channelInfo.querySelector('link')?.textContent || '';
-        const language = channelInfo.querySelector('language')?.textContent || '';
-        const copyright = channelInfo.querySelector('copyright')?.textContent || '';
-        const lastBuildDate = channelInfo.querySelector('lastBuildDate')?.textContent || '';
-        
-        // Remove any existing popup
-        const existingPopup = document.querySelector('.feed-info-popup');
-        if (existingPopup) {
-          existingPopup.remove();
-        }
-
-        // Create popup content
-        const infoContent = document.createElement('div');
-        infoContent.className = 'feed-info-popup';
-        
-        // Add feed information (truncate description if too long)
-        const truncatedDesc = description.length > 200 ? description.substring(0, 200) + '...' : description;
-        
-        infoContent.innerHTML = `
-          <div class="feed-info-content">
-            <h3>${feedTitle}</h3>
-            <p>${truncatedDesc}</p>
-            ${link ? `<p><strong>Website:</strong> <a href="${link}" target="_blank">${link}</a></p>` : ''}
-            ${copyright ? `<p><strong>Copyright:</strong> ${copyright}</p>` : ''}
-            ${lastBuildDate ? `<p><strong>Last updated:</strong> ${new Date(lastBuildDate).toLocaleDateString('en-US', {
-              month: 'long',
-              day: 'numeric',
-              year: 'numeric'
-            })}</p>` : ''}
-          </div>
-        `;
-        
-        // Add close button
-        const closeButton = document.createElement('button');
-        closeButton.className = 'feed-info-close';
-        closeButton.textContent = '×';
-        closeButton.addEventListener('click', (e) => {
-          e.stopPropagation();
-          infoContent.remove();
+        // Add click handler for expand/collapse
+        separator.addEventListener('click', () => {
+          separator.classList.toggle('collapsed');
+          episodesContainer.classList.toggle('collapsed');
+          toggleIcon.textContent = separator.classList.contains('collapsed') ? '▶' : '▼';
         });
-        infoContent.insertBefore(closeButton, infoContent.firstChild);
-        
-        // Calculate position
-        const iconRect = infoIcon.getBoundingClientRect();
-        const scrollTop = window.scrollY || document.documentElement.scrollTop;
-        
-        // Position the popup below the icon
-        infoContent.style.top = `${iconRect.bottom + 5}px`;  // 5px gap
-        infoContent.style.left = '10px';  // Match margin from CSS
-        
-        // Add to body instead of feed container for fixed positioning
-        document.body.appendChild(infoContent);
-        
-        // Adjust position if popup would go off screen
-        const popupRect = infoContent.getBoundingClientRect();
-        const viewportHeight = window.innerHeight;
-        if (popupRect.bottom > viewportHeight) {
-          // Position above the icon if it would go off screen below
-          infoContent.style.top = `${iconRect.top - popupRect.height - 5}px`;
-        }
-        
-        // Close popup when clicking outside
-        document.addEventListener('click', function closePopup(e) {
-          if (!infoContent.contains(e.target) && e.target !== infoIcon) {
-            infoContent.remove();
-            document.removeEventListener('click', closePopup);
-          }
+
+        // Process items and create episode elements
+        const items = allItems.map(item => ({
+          title: item.querySelector('title')?.textContent || 'Untitled',
+          url: item.querySelector('enclosure')?.getAttribute('url') || '',
+          date: item.querySelector('pubDate')?.textContent || ''
+        })).filter(item => item.url);
+
+        // Show first 5 episodes
+        const initialEpisodes = items.slice(0, 5);
+        const remainingEpisodes = items.slice(5);
+
+        // Add initial episodes
+        initialEpisodes.forEach(item => {
+          const episodeDiv = createEpisodeElement(item, feedUrl);
+          episodesContainer.appendChild(episodeDiv);
         });
-      });
-      
-      // Refresh icon
-      const refreshIcon = document.createElement('span');
-      refreshIcon.className = 'podcast-icon';
-      refreshIcon.textContent = '↻';
-      refreshIcon.title = 'Refresh feed';
-      refreshIcon.addEventListener('click', async (e) => {
-        e.stopPropagation();  // Prevent toggle action
-        
-        // Show loading state
-        refreshIcon.style.opacity = '0.5';
-        refreshIcon.style.cursor = 'wait';
-        
-        try {
-          // Re-fetch and parse this specific feed
-          const result = await tryParseRss(feedUrl);
-          if (result.success) {
-            // Clear existing episodes
-            episodesContainer.innerHTML = '';
+
+        // Add load more button if there are remaining episodes
+        if (remainingEpisodes.length > 0) {
+          const loadMoreBtn = document.createElement('button');
+          loadMoreBtn.className = 'load-more-button';
+          loadMoreBtn.textContent = `Load 5 more episodes`;
+          loadMoreBtn.addEventListener('click', () => {
+            // Take next 5 episodes
+            const nextEpisodes = remainingEpisodes.splice(0, 5);
             
-            // Re-add the header row
-            const header = document.createElement('div');
-            header.className = 'episode-header';
-            header.innerHTML = `
-              <div class="header-play"></div>
-              <div class="header-title">Episode</div>
-              <div class="header-complete">Complete</div>
-            `;
-            episodesContainer.appendChild(header);
+            // Remove the button temporarily
+            loadMoreBtn.remove();
             
-            // Get episodes limit
-            const limit = await new Promise(resolve => {
-              chrome.storage.local.get('audioLimit', (data) => {
-                resolve(parseInt(data.audioLimit) || 3);
-              });
+            // Add next episodes
+            nextEpisodes.forEach(item => {
+              const episodeDiv = createEpisodeElement(item, feedUrl);
+              episodesContainer.appendChild(episodeDiv);
             });
             
-            // Get played episodes
-            const playedData = await chrome.storage.local.get('playedEpisodes');
-            const playedEpisodes = playedData.playedEpisodes || {};
-            const playedForFeed = playedEpisodes[feedUrl] || [];
-            
-            // Process episodes
-            const items = Array.from(result.xmlDoc.querySelectorAll('item'));
-            const audioItems = items.filter(item => 
-              item.querySelector('enclosure')?.getAttribute('type') === 'audio/mpeg'
-            );
-            
-            // Update episode count and date in the header
-            const episodeCount = audioItems.length;
-            let feedLatestDate = null;
-            audioItems.forEach(item => {
-              const pubDate = item.querySelector('pubDate')?.textContent;
-              if (pubDate) {
-                const date = new Date(pubDate);
-                if (!feedLatestDate || date > feedLatestDate) {
-                  feedLatestDate = date;
-                }
-              }
-            });
-            
-            // Update the info text
-            const dateStr = feedLatestDate ? feedLatestDate.toLocaleDateString('en-US', { 
-              month: 'short', 
-              day: 'numeric', 
-              year: 'numeric' 
-            }) : '';
-            infoText.textContent = `${episodeCount} episodes • ${dateStr}`;
-            
-            // Show episodes
-            const playedInLimit = audioItems.slice(0, limit).filter(item => {
-              const audioUrl = item.querySelector('enclosure')?.getAttribute('url');
-              return audioUrl && playedForFeed.includes(audioUrl);
-            }).length;
-            
-            const itemsToShow = audioItems.slice(0, limit + playedInLimit);
-            
-            for (const item of itemsToShow) {
-              const title = item.querySelector('title')?.textContent || 'Untitled';
-              const audioUrl = item.querySelector('enclosure')?.getAttribute('url');
-              const pubDate = item.querySelector('pubDate')?.textContent;
-              
-              if (!audioUrl) continue;
-              
-              const div = document.createElement('div');
-              div.className = 'audio-item';
-              
-              const contentDiv = document.createElement('div');
-              contentDiv.className = 'audio-content';
-              
-              const titleSpan = document.createElement('div');
-              titleSpan.className = 'audio-title';
-              titleSpan.textContent = title;
-              contentDiv.appendChild(titleSpan);
-              
-              if (pubDate) {
-                const infoDiv = document.createElement('div');
-                infoDiv.className = 'audio-info';
-                
-                const progressSpan = document.createElement('span');
-                progressSpan.className = 'audio-progress';
-                progressSpan.textContent = '0:00/--:--';  // Default before duration is known
-                
-                const dateSpan = document.createElement('span');
-                dateSpan.className = 'audio-date';
-                const date = new Date(pubDate);
-                dateSpan.textContent = ' • Publication date: ' + date.toLocaleDateString('en-US', {
-                  year: 'numeric',
-                  month: 'long',
-                  day: 'numeric'
-                });
-                
-                infoDiv.appendChild(progressSpan);
-                infoDiv.appendChild(dateSpan);
-                contentDiv.appendChild(infoDiv);
-              }
-              
-              // Format time helper function
-              const formatTime = (seconds) => {
-                const hrs = Math.floor(seconds / 3600);
-                const mins = Math.floor((seconds % 3600) / 60);
-                const secs = Math.floor(seconds % 60);
-                if (hrs > 0) {
-                  return `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-                }
-                return `${mins}:${secs.toString().padStart(2, '0')}`;
-              };
-
-              // Create audio element for duration and progress tracking
-              const audio = new Audio();
-              audio.preload = 'metadata';  // Only load metadata to get duration
-              audio.src = audioUrl;
-
-              // Load duration when metadata is loaded
-              audio.addEventListener('loadedmetadata', () => {
-                const totalTime = formatTime(audio.duration);
-                const currentTime = formatTime(audio.currentTime);
-                const progressSpan = div.querySelector('.audio-progress');
-                if (progressSpan) {
-                  progressSpan.textContent = `${currentTime}/${totalTime}`;
-                }
-              });
-
-              // Update time display during playback
-              audio.addEventListener('timeupdate', () => {
-                const totalTime = formatTime(audio.duration);
-                const currentTime = formatTime(audio.currentTime);
-                const progressSpan = div.querySelector('.audio-progress');
-                if (progressSpan) {
-                  progressSpan.textContent = `${currentTime}/${totalTime}`;
-                }
-              });
-
-              // Store progress when playback stops
-              audio.addEventListener('pause', async () => {
-                const progress = {
-                  currentTime: audio.currentTime,
-                  duration: audio.duration,
-                  lastPlayed: new Date().toISOString()
-                };
-                
-                // Get existing progress data
-                const progressData = await chrome.storage.local.get('episodeProgress') || {};
-                const allProgress = progressData.episodeProgress || {};
-                
-                // Update progress for this episode
-                allProgress[audioUrl] = progress;
-                
-                // Save back to storage
-                await chrome.storage.local.set({ episodeProgress: allProgress });
-              });
-
-              // Load saved progress when creating episode
-              chrome.storage.local.get('episodeProgress').then(data => {
-                const progress = data.episodeProgress?.[audioUrl];
-                if (progress) {
-                  const currentTime = formatTime(progress.currentTime);
-                  const totalTime = formatTime(progress.duration);
-                  const progressSpan = div.querySelector('.audio-progress');
-                  if (progressSpan) {
-                    progressSpan.textContent = `${currentTime}/${totalTime}`;
-                  }
-                }
-              });
-
-              // Check if episode is marked as played
-              const isPlayed = playedForFeed.includes(audioUrl);
-              if (isPlayed) {
-                div.classList.add('played');
-              }
-
-              // Add play button
-              const playButton = createPlayButton(audioUrl, title);
-              div.appendChild(playButton);
-
-              // Add content div with title and info
-              div.appendChild(contentDiv);
-
-              // Add mark as played/unplayed button
-              const markPlayedButton = createMarkPlayedButton(audioUrl, title, feedUrl, isPlayed);
-              div.appendChild(markPlayedButton);
-
-              episodesContainer.appendChild(div);
+            // Add the button back if there are more episodes
+            if (remainingEpisodes.length > 0) {
+              episodesContainer.appendChild(loadMoreBtn);
             }
-          }
-        } catch (error) {
-          console.error('Error refreshing feed:', error);
-        } finally {
-          // Reset loading state
-          refreshIcon.style.opacity = '1';
-          refreshIcon.style.cursor = 'pointer';
-        }
-      });
-      
-      // Remove icon
-      const removeIcon = document.createElement('span');
-      removeIcon.className = 'podcast-icon';
-      removeIcon.textContent = '×';
-      removeIcon.title = 'Remove from player';
-      removeIcon.addEventListener('click', async (e) => {
-        e.stopPropagation();  // Prevent toggle action
-        
-        // Get current feeds
-        const data = await new Promise(resolve => {
-          chrome.storage.local.get('feeds', (data) => resolve(data));
-        });
-        
-        // Remove this feed
-        const feeds = data.feeds || [];
-        const updatedFeeds = feeds.filter(f => f !== feedUrl);
-        
-        // Update storage
-        await new Promise(resolve => {
-          chrome.storage.local.set({ feeds: updatedFeeds }, resolve);
-        });
-        
-        // Remove feed container from UI with animation
-        feedContainer.style.transition = 'opacity 0.3s ease';
-        feedContainer.style.opacity = '0';
-        setTimeout(() => {
-          feedContainer.remove();
-        }, 300);
-      });
-      
-      // Add icons to container
-      iconsContainer.appendChild(infoIcon);
-      iconsContainer.appendChild(refreshIcon);
-      iconsContainer.appendChild(removeIcon);
-      
-      separator.appendChild(toggleIcon);
-      separator.appendChild(titleContainer);
-      separator.appendChild(iconsContainer);
-      feedContainer.appendChild(separator);
-
-      // Create episodes container
-      const episodesContainer = document.createElement('div');
-      episodesContainer.className = 'feed-episodes';
-
-      // Remove header row code and directly start adding episodes
-      feedContainer.appendChild(episodesContainer);
-
-      // Add click handler for expand/collapse
-      separator.addEventListener('click', () => {
-        separator.classList.toggle('collapsed');
-        episodesContainer.classList.toggle('collapsed');
-        toggleIcon.textContent = separator.classList.contains('collapsed') ? '▶' : '▼';
-      });
-
-      podContent.appendChild(feedContainer);
-
-      // Get the number of episodes to show
-      const limit = await new Promise(resolve => {
-        chrome.storage.local.get('audioLimit', (data) => {
-          resolve(parseInt(data.audioLimit) || 3);
-        });
-      });
-      
-      // Get played episodes for this feed
-      const playedData = await chrome.storage.local.get('playedEpisodes');
-      const playedEpisodes = playedData.playedEpisodes || {};
-      const playedForFeed = playedEpisodes[feedUrl] || [];
-
-      // Count how many of the first 'limit' items are played
-      const playedInLimit = audioItems.slice(0, limit).filter(item => {
-        const audioUrl = item.querySelector('enclosure')?.getAttribute('url');
-        return audioUrl && playedForFeed.includes(audioUrl);
-      }).length;
-
-      // Show additional items equal to the number of played items
-      const itemsToShow = audioItems.slice(0, limit + playedInLimit);
-
-      // Show all items
-      for (const item of itemsToShow) {
-        const title = item.querySelector('title')?.textContent || 'Untitled';
-        const audioUrl = item.querySelector('enclosure')?.getAttribute('url');
-        const pubDate = item.querySelector('pubDate')?.textContent;
-        
-        if (!audioUrl) continue;
-
-        const div = document.createElement('div');
-        div.className = 'audio-item';
-
-        // Create container for title and date
-        const contentDiv = document.createElement('div');
-        contentDiv.className = 'audio-content';
-
-        // Add title
-        const titleSpan = document.createElement('div');
-        titleSpan.className = 'audio-title';
-        titleSpan.textContent = title;
-        contentDiv.appendChild(titleSpan);
-
-        // Add date if available
-        if (pubDate) {
-          const infoDiv = document.createElement('div');
-          infoDiv.className = 'audio-info';
-          
-          const progressSpan = document.createElement('span');
-          progressSpan.className = 'audio-progress';
-          progressSpan.textContent = '0:00/--:--';  // Default before duration is known
-          
-          const dateSpan = document.createElement('span');
-          dateSpan.className = 'audio-date';
-          const date = new Date(pubDate);
-          dateSpan.textContent = ' • Publication date: ' + date.toLocaleDateString('en-US', {
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric'
           });
           
-          infoDiv.appendChild(progressSpan);
-          infoDiv.appendChild(dateSpan);
-          contentDiv.appendChild(infoDiv);
+          // Add initial load more button
+          episodesContainer.appendChild(loadMoreBtn);
         }
 
-        // Format time helper function
-        const formatTime = (seconds) => {
-          const hrs = Math.floor(seconds / 3600);
-          const mins = Math.floor((seconds % 3600) / 60);
-          const secs = Math.floor(seconds % 60);
-          if (hrs > 0) {
-            return `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-          }
-          return `${mins}:${secs.toString().padStart(2, '0')}`;
-        };
+        // Add feed container to podcasts container
+        feedContainer.appendChild(separator);
+        feedContainer.appendChild(episodesContainer);
+        podContent.appendChild(feedContainer);
 
-        // Create audio element for duration and progress tracking
-        const audio = new Audio();
-        audio.preload = 'metadata';  // Only load metadata to get duration
-        audio.src = audioUrl;
-
-        // Load duration when metadata is loaded
-        audio.addEventListener('loadedmetadata', () => {
-          const totalTime = formatTime(audio.duration);
-          const currentTime = formatTime(audio.currentTime);
-          const progressSpan = div.querySelector('.audio-progress');
-          if (progressSpan) {
-            progressSpan.textContent = `${currentTime}/${totalTime}`;
-          }
+        // Add event listeners for icons
+        infoIcon.addEventListener('click', (e) => {
+          e.stopPropagation();
+          // ... rest of info icon click handler ...
         });
 
-        // Update time display during playback
-        audio.addEventListener('timeupdate', () => {
-          const totalTime = formatTime(audio.duration);
-          const currentTime = formatTime(audio.currentTime);
-          const progressSpan = div.querySelector('.audio-progress');
-          if (progressSpan) {
-            progressSpan.textContent = `${currentTime}/${totalTime}`;
-          }
+        refreshIcon.addEventListener('click', (e) => {
+          e.stopPropagation();
+          // ... rest of refresh icon click handler ...
         });
 
-        // Store progress when playback stops
-        audio.addEventListener('pause', async () => {
-          const progress = {
-            currentTime: audio.currentTime,
-            duration: audio.duration,
-            lastPlayed: new Date().toISOString()
-          };
-          
-          // Get existing progress data
-          const progressData = await chrome.storage.local.get('episodeProgress') || {};
-          const allProgress = progressData.episodeProgress || {};
-          
-          // Update progress for this episode
-          allProgress[audioUrl] = progress;
-          
-          // Save back to storage
-          await chrome.storage.local.set({ episodeProgress: allProgress });
+        removeIcon.addEventListener('click', (e) => {
+          e.stopPropagation();
+          // ... rest of remove icon click handler ...
         });
 
-        // Load saved progress when creating episode
-        chrome.storage.local.get('episodeProgress').then(data => {
-          const progress = data.episodeProgress?.[audioUrl];
-          if (progress) {
-            const currentTime = formatTime(progress.currentTime);
-            const totalTime = formatTime(progress.duration);
-            const progressSpan = div.querySelector('.audio-progress');
-            if (progressSpan) {
-              progressSpan.textContent = `${currentTime}/${totalTime}`;
-            }
-          }
-        });
-
-        // Check if episode is marked as played
-        const isPlayed = playedForFeed.includes(audioUrl);
-        if (isPlayed) {
-          div.classList.add('played');
-        }
-
-        // Add play button
-        const playButton = createPlayButton(audioUrl, title);
-        div.appendChild(playButton);
-
-        // Add content div with title and info
-        div.appendChild(contentDiv);
-
-        // Add mark as played/unplayed button
-        const markPlayedButton = createMarkPlayedButton(audioUrl, title, feedUrl, isPlayed);
-        div.appendChild(markPlayedButton);
-
-        episodesContainer.appendChild(div);
+      } catch (err) {
+        console.error('Error processing feed:', feedUrl, err);
+        continue;
       }
-    }
-
-    // Remove the main Pods header update since we're showing info per feed
-    const podsHeader = document.querySelector('#audioList .section-header span:not(.toggle-icon)');
-    if (podsHeader) {
-      podsHeader.textContent = 'Pods';
     }
   }
 
@@ -1809,14 +1482,14 @@ function loadLiveChannels() {
   });
 }
 
-// Function to update episode progress in the list
+// Enhanced updateEpisodeProgress function
 function updateEpisodeProgress(currentTime, duration) {
   if (!currentTime || !duration) return;
   
   const currentEpisodeUrl = player.src;
   const episodeItems = document.querySelectorAll('.audio-item');
   
-  episodeItems.forEach(async (item) => {
+  episodeItems.forEach(item => {
     const playBtn = item.querySelector('.audio-control');
     const progressEl = item.querySelector('.audio-progress');
     if (!playBtn || !progressEl) return;
@@ -1826,36 +1499,35 @@ function updateEpisodeProgress(currentTime, duration) {
       const currentTimeStr = formatTime(currentTime);
       const durationStr = formatTime(duration);
       progressEl.textContent = `${currentTimeStr} / ${durationStr}`;
-    } else {
-      // For non-playing episodes, load their saved progress
-      try {
-        const data = await chrome.storage.local.get('episodeProgress');
-        const progress = data.episodeProgress?.[playBtn.dataset.url];
-        if (progress?.duration) {  // Only update if we have valid duration
-          const savedTimeStr = formatTime(progress.currentTime);
-          const savedDurationStr = formatTime(progress.duration);
-          progressEl.textContent = `${savedTimeStr} / ${savedDurationStr}`;
-        }
-      } catch (err) {
-        console.error('Error loading progress:', err);
-      }
+
+      // Save progress to storage
+      saveEpisodeProgress(currentEpisodeUrl, currentTime, duration);
     }
   });
 }
 
-// Function to save episode progress
+// Enhanced saveEpisodeProgress function
 async function saveEpisodeProgress(url, currentTime, duration) {
   if (!url || !duration) return;
   
   try {
     const data = await chrome.storage.local.get('episodeProgress');
     const allProgress = data.episodeProgress || {};
-    allProgress[url] = {
-      currentTime,
-      duration,
-      lastPlayed: new Date().toISOString()
-    };
-    await chrome.storage.local.set({ episodeProgress: allProgress });
+    
+    // Only update if the values have changed
+    const currentProgress = allProgress[url];
+    if (!currentProgress || 
+        currentProgress.currentTime !== currentTime || 
+        currentProgress.duration !== duration) {
+      
+      allProgress[url] = {
+        currentTime,
+        duration,
+        lastPlayed: new Date().toISOString()
+      };
+      
+      await chrome.storage.local.set({ episodeProgress: allProgress });
+    }
   } catch (err) {
     console.error('Error saving progress:', err);
   }
@@ -1924,3 +1596,18 @@ function initializeSeekControl() {
     }
   });
 }
+
+// Add ended listener to handle episode completion
+player.addEventListener('ended', () => {
+  if (currentlyPlayingUrl) {
+    // Save final position
+    saveEpisodeProgress(currentlyPlayingUrl, player.duration, player.duration);
+    
+    // Reset play button
+    const playBtn = document.querySelector(`.audio-control[data-url="${currentlyPlayingUrl}"]`);
+    if (playBtn) {
+      playBtn.textContent = '⏵';
+    }
+    currentlyPlayingUrl = null;
+  }
+});

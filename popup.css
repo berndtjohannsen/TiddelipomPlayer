@@ -610,4 +610,24 @@ audio::-webkit-media-controls-toggle-closed-captions-button {
   display: flex;
   justify-content: center;
   margin: 8px 0;
+}
+
+/* Load more button */
+.load-more-button {
+  display: block;
+  width: 100%;
+  padding: 6px 4px;
+  margin: 4px 0;
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 4px;
+  color: #495057;
+  font-size: 0.9em;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.load-more-button:hover {
+  background-color: #e9ecef;
 } 
