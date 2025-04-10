@@ -36,6 +36,29 @@ function initializePopup() {
   player.defaultPlaybackRate = 1.0;  // Set default playback rate
   player.preservesPitch = true;      // Enable pitch preservation for all streams
 
+  // Sync play/pause state with episode buttons
+  player.addEventListener('play', () => {
+    const currentUrl = player.src;
+    const allPlayBtns = document.querySelectorAll('.audio-control:not(.mark-played)');
+    allPlayBtns.forEach(btn => {
+      if (btn.dataset.url === currentUrl) {
+        btn.textContent = '⏸';
+      } else {
+        btn.textContent = '⏵';
+      }
+    });
+  });
+
+  player.addEventListener('pause', () => {
+    const currentUrl = player.src;
+    const allPlayBtns = document.querySelectorAll('.audio-control:not(.mark-played)');
+    allPlayBtns.forEach(btn => {
+      if (btn.dataset.url === currentUrl) {
+        btn.textContent = '⏵';
+      }
+    });
+  });
+
   // Handle content type detection
   player.addEventListener('loadstart', () => {
     // Check if URL contains common streaming indicators
