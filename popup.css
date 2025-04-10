@@ -472,4 +472,117 @@ audio::-webkit-media-controls-toggle-closed-captions-button {
 .feed-info-close:hover {
   background-color: #f0f0f0;
   color: #303030;
+}
+
+.audio-info {
+  display: flex;
+  align-items: center;
+  font-size: 12px;
+  color: #666;
+}
+
+.audio-progress {
+  font-family: monospace;  /* For better alignment of time digits */
+  color: #444;
+}
+
+.audio-date {
+  color: #666;
+}
+
+/* Hide default audio controls */
+#player {
+  display: none;
+}
+
+/* Minimal controls container */
+.minimal-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 8px;
+  background: #f8f9fa;
+  border-radius: 4px;
+  margin: 4px 0;
+}
+
+/* Volume control section */
+.volume-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+
+/* Mute button */
+.control-btn {
+  background: none;
+  border: none;
+  padding: 4px;
+  cursor: pointer;
+  font-size: 16px;
+  color: #444;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+.control-btn:hover {
+  background-color: #e9ecef;
+}
+
+/* Volume slider */
+.slider {
+  flex: 1;
+  max-width: 100px;
+  height: 4px;
+  -webkit-appearance: none;
+  background: #dee2e6;
+  border-radius: 2px;
+  outline: none;
+}
+
+.slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #1976d2;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.slider::-webkit-slider-thumb:hover {
+  background: #1565c0;
+}
+
+/* Speed control */
+.speed-select {
+  padding: 2px 4px;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  background: white;
+  color: #444;
+  font-size: 12px;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.speed-select:hover {
+  border-color: #adb5bd;
+}
+
+.speed-select:focus {
+  border-color: #1976d2;
+}
+
+.now-playing {
+  font-size: 12px;
+  color: #666;
+  padding: 4px 8px;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-height: 16px;
 } 

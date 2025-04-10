@@ -1,3 +1,19 @@
+// Global variables
+let currentlyPlayingUrl = null;
+let playerEventsAdded = false;
+
+// Format time helper function
+function formatTime(seconds) {
+  if (isNaN(seconds)) return '0:00';
+  const hrs = Math.floor(seconds / 3600);
+  const mins = Math.floor((seconds % 3600) / 60);
+  const secs = Math.floor(seconds % 60);
+  if (hrs > 0) {
+    return `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  }
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
+
 // Wait for DOM to be ready before doing anything
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', initializePopup);
@@ -5,154 +21,79 @@ if (document.readyState === 'loading') {
   initializePopup();
 }
 
-// Function to load and display live channels
-function loadLiveChannels() {
-  const channelList = document.getElementById('channelList');
-  const player = document.getElementById('player');
-  const nowPlaying = document.getElementById('nowPlaying');
-  
-  const channelContent = channelList.querySelector('.section-content');
-  if (!channelContent) {
-    return;
-  }
-
-  console.log('Loading live channels...');
-  chrome.storage.local.get('liveChannels', (data) => {
-    const channels = data.liveChannels || [];
-    console.log('Found live channels:', channels);
-    channelContent.innerHTML = '';
-
-    // Create channels container
-    const channelsContainer = document.createElement('div');
-    channelsContainer.className = 'feed-container';
-
-    // Add header row
-    const header = document.createElement('div');
-    header.className = 'episode-header';
-    
-    const playHeader = document.createElement('div');
-    playHeader.className = 'header-play';
-    
-    const titleHeader = document.createElement('div');
-    titleHeader.className = 'header-title';
-    titleHeader.textContent = '';  // Remove 'Channel' text while keeping the structure
-
-    const spacerHeader = document.createElement('div');
-    spacerHeader.className = 'header-complete';
-    spacerHeader.style.visibility = 'hidden';  // Hidden but maintains spacing
-    
-    header.appendChild(playHeader);
-    header.appendChild(titleHeader);
-    header.appendChild(spacerHeader);
-    channelsContainer.appendChild(header);
-
-    // Add each channel
-    channels.forEach(channel => {
-      console.log('Adding channel:', channel.name);
-      const channelDiv = document.createElement('div');
-      channelDiv.className = 'audio-item';
-
-      // Create play button
-      const playBtn = document.createElement('button');
-      playBtn.className = 'audio-control';
-      playBtn.textContent = '⏵';
-      playBtn.title = 'Play';
-
-      // Create channel content
-      const contentDiv = document.createElement('div');
-      contentDiv.className = 'audio-content';
-      
-      const titleDiv = document.createElement('div');
-      titleDiv.className = 'audio-title';
-      titleDiv.textContent = channel.name;
-      
-      const descDiv = document.createElement('div');
-      descDiv.className = 'audio-date';  // Using audio-date for consistent styling
-      descDiv.textContent = channel.description;
-      
-      contentDiv.appendChild(titleDiv);
-      contentDiv.appendChild(descDiv);
-
-      // Add spacer div to maintain grid alignment
-      const spacerDiv = document.createElement('div');
-      spacerDiv.style.width = '30px';  // Match the width of the complete column
-
-      // Add click handler for play button
-      playBtn.addEventListener('click', async (e) => {
-        e.stopPropagation();
-        
-        if (player.src === channel.url) {
-          // Same channel - just toggle play/pause
-          if (player.paused) {
-            player.play().catch(err => {
-              handlePlaybackError(err, contentDiv, playBtn);
-            });
-            playBtn.textContent = '⏸';
-          } else {
-            player.pause();
-            playBtn.textContent = '⏵';
-          }
-        } else {
-          // Different channel - stop current and play new
-          player.pause();
-          
-          // Reset all other play buttons
-          document.querySelectorAll('.audio-control').forEach(btn => {
-            btn.textContent = '⏵';
-          });
-          
-          // Clear any previous error messages
-          clearErrorMessages(contentDiv);
-
-          // Play this channel
-          try {
-            // First check if we can reach the URL
-            const checkResponse = await fetch(channel.url, { method: 'HEAD' });
-            if (!checkResponse.ok) {
-              throw new Error('NetworkError');
-            }
-
-            player.src = channel.url;
-            await player.play();  // Wait for play to succeed before changing button
-            playBtn.textContent = '⏸';
-            nowPlaying.textContent = channel.name;
-          } catch (err) {
-            playBtn.textContent = '⏵';  // Ensure button shows play state on error
-            handlePlaybackError(err, contentDiv, playBtn);
-          }
-        }
-      });
-
-      // Update button state based on player events
-      player.addEventListener('play', () => {
-        if (player.src === channel.url) {
-          playBtn.textContent = '⏸';
-        }
-      });
-
-      player.addEventListener('pause', () => {
-        if (player.src === channel.url) {
-          playBtn.textContent = '⏵';
-        }
-      });
-
-      // Assemble channel item
-      channelDiv.appendChild(playBtn);
-      channelDiv.appendChild(contentDiv);
-      channelDiv.appendChild(spacerDiv);
-      channelsContainer.appendChild(channelDiv);
-    });
-
-    channelContent.appendChild(channelsContainer);
-  });
-}
-
 function initializePopup() {
   // Initialize UI elements
   const channelList = document.getElementById('channelList');
   const audioList = document.getElementById('audioList');
   const player = document.getElementById('player');
+  const volumeSlider = document.getElementById('volumeSlider');
+  const muteButton = document.getElementById('muteButton');
+  const speedSelect = document.getElementById('speedSelect');
   const nowPlaying = document.getElementById('nowPlaying');
+
+  // Volume control
+  volumeSlider.addEventListener('input', () => {
+    const volume = volumeSlider.value / 100;
+    player.volume = volume;
+    muteButton.textContent = volume === 0 ? '🔈' : volume < 0.5 ? '🔉' : '🔊';
+    player.muted = false;
+  });
+
+  // Mute button
+  muteButton.addEventListener('click', () => {
+    player.muted = !player.muted;
+    muteButton.textContent = player.muted ? '🔈' : 
+      player.volume < 0.5 ? '🔉' : '🔊';
+  });
+
+  // Speed control
+  speedSelect.addEventListener('change', () => {
+    player.playbackRate = parseFloat(speedSelect.value);
+  });
+
+  // Initialize controls with player's current state
+  player.addEventListener('loadedmetadata', () => {
+    volumeSlider.value = player.volume * 100;
+    muteButton.textContent = player.muted ? '🔈' : 
+      player.volume < 0.5 ? '🔉' : '🔊';
+    speedSelect.value = player.playbackRate.toString();
+
+    // Update progress display if playing something
+    if (currentlyPlayingUrl) {
+      updateProgressDisplay(currentlyPlayingUrl);
+    }
+  });
+
+  // Add progress tracking
+  player.addEventListener('timeupdate', () => {
+    if (currentlyPlayingUrl) {
+      updateProgressDisplay(currentlyPlayingUrl);
+    }
+  });
+
+  // Save progress on pause
+  player.addEventListener('pause', async () => {
+    if (currentlyPlayingUrl) {
+      // Update progress display one final time
+      updateProgressDisplay(currentlyPlayingUrl);
+
+      // Save progress
+      const progress = {
+        currentTime: player.currentTime,
+        duration: player.duration,
+        lastPlayed: new Date().toISOString()
+      };
+      
+      try {
+        const progressData = await chrome.storage.local.get('episodeProgress') || {};
+        const allProgress = progressData.episodeProgress || {};
+        allProgress[currentlyPlayingUrl] = progress;
+        await chrome.storage.local.set({ episodeProgress: allProgress });
+      } catch (err) {
+        console.error('Failed to save progress:', err);
+      }
+    }
+  });
 
   // Set version number from manifest
   const versionElement = document.querySelector('.app-version');
@@ -230,6 +171,64 @@ function initializePopup() {
     console.log('Initial load of live channels...');
     loadLiveChannels();
   }
+
+  // Initialize controls
+  document.addEventListener('DOMContentLoaded', () => {
+    // Initialize volume and speed controls
+    const volumeSlider = document.getElementById('volumeSlider');
+    const muteButton = document.getElementById('muteButton');
+    const speedSelect = document.getElementById('speedSelect');
+
+    // Volume control
+    volumeSlider.addEventListener('input', () => {
+      const volume = volumeSlider.value / 100;
+      player.volume = volume;
+      muteButton.textContent = volume === 0 ? '🔈' : volume < 0.5 ? '🔉' : '🔊';
+      player.muted = false;
+    });
+
+    // Mute button
+    muteButton.addEventListener('click', () => {
+      player.muted = !player.muted;
+      muteButton.textContent = player.muted ? '🔈' : 
+        player.volume < 0.5 ? '🔉' : '🔊';
+    });
+
+    // Speed control
+    speedSelect.addEventListener('change', () => {
+      player.playbackRate = parseFloat(speedSelect.value);
+    });
+
+    // Initialize controls with player's current state
+    player.addEventListener('loadedmetadata', () => {
+      volumeSlider.value = player.volume * 100;
+      muteButton.textContent = player.muted ? '🔈' : 
+        player.volume < 0.5 ? '🔉' : '🔊';
+      speedSelect.value = player.playbackRate.toString();
+    });
+
+    // Update progress display for the current episode
+    function updateProgressDisplay(url) {
+      if (!url) return;
+      
+      const progressSpan = document.querySelector(`[data-url="${url}"]`)
+        ?.closest('.audio-item')
+        ?.querySelector('.audio-progress');
+        
+      if (progressSpan) {
+        const currentTime = formatTime(player.currentTime);
+        const totalTime = formatTime(player.duration);
+        progressSpan.textContent = `${currentTime}/${totalTime}`;
+      }
+    }
+
+    // Add timeupdate listener to update progress
+    player.addEventListener('timeupdate', () => {
+      if (currentlyPlayingUrl) {
+        updateProgressDisplay(currentlyPlayingUrl);
+      }
+    });
+  });
 }
 
 function initializeStandaloneFeatures() {
@@ -486,29 +485,112 @@ function initializeStandaloneFeatures() {
               contentDiv.appendChild(titleSpan);
               
               if (pubDate) {
-                const dateDiv = document.createElement('div');
-                dateDiv.className = 'audio-date';
+                const infoDiv = document.createElement('div');
+                infoDiv.className = 'audio-info';
+                
+                const progressSpan = document.createElement('span');
+                progressSpan.className = 'audio-progress';
+                progressSpan.textContent = '0:00/--:--';  // Default before duration is known
+                
+                const dateSpan = document.createElement('span');
+                dateSpan.className = 'audio-date';
                 const date = new Date(pubDate);
-                dateDiv.textContent = 'Publication date: ' + date.toLocaleDateString('en-US', {
+                dateSpan.textContent = ' • Publication date: ' + date.toLocaleDateString('en-US', {
                   year: 'numeric',
                   month: 'long',
                   day: 'numeric'
                 });
-                contentDiv.appendChild(dateDiv);
+                
+                infoDiv.appendChild(progressSpan);
+                infoDiv.appendChild(dateSpan);
+                contentDiv.appendChild(infoDiv);
               }
               
+              // Format time helper function
+              const formatTime = (seconds) => {
+                const hrs = Math.floor(seconds / 3600);
+                const mins = Math.floor((seconds % 3600) / 60);
+                const secs = Math.floor(seconds % 60);
+                if (hrs > 0) {
+                  return `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+                }
+                return `${mins}:${secs.toString().padStart(2, '0')}`;
+              };
+
+              // Create audio element for duration and progress tracking
+              const audio = new Audio();
+              audio.preload = 'metadata';  // Only load metadata to get duration
+              audio.src = audioUrl;
+
+              // Load duration when metadata is loaded
+              audio.addEventListener('loadedmetadata', () => {
+                const totalTime = formatTime(audio.duration);
+                const currentTime = formatTime(audio.currentTime);
+                const progressSpan = div.querySelector('.audio-progress');
+                if (progressSpan) {
+                  progressSpan.textContent = `${currentTime}/${totalTime}`;
+                }
+              });
+
+              // Update time display during playback
+              audio.addEventListener('timeupdate', () => {
+                const totalTime = formatTime(audio.duration);
+                const currentTime = formatTime(audio.currentTime);
+                const progressSpan = div.querySelector('.audio-progress');
+                if (progressSpan) {
+                  progressSpan.textContent = `${currentTime}/${totalTime}`;
+                }
+              });
+
+              // Store progress when playback stops
+              audio.addEventListener('pause', async () => {
+                const progress = {
+                  currentTime: audio.currentTime,
+                  duration: audio.duration,
+                  lastPlayed: new Date().toISOString()
+                };
+                
+                // Get existing progress data
+                const progressData = await chrome.storage.local.get('episodeProgress') || {};
+                const allProgress = progressData.episodeProgress || {};
+                
+                // Update progress for this episode
+                allProgress[audioUrl] = progress;
+                
+                // Save back to storage
+                await chrome.storage.local.set({ episodeProgress: allProgress });
+              });
+
+              // Load saved progress when creating episode
+              chrome.storage.local.get('episodeProgress').then(data => {
+                const progress = data.episodeProgress?.[audioUrl];
+                if (progress) {
+                  const currentTime = formatTime(progress.currentTime);
+                  const totalTime = formatTime(progress.duration);
+                  const progressSpan = div.querySelector('.audio-progress');
+                  if (progressSpan) {
+                    progressSpan.textContent = `${currentTime}/${totalTime}`;
+                  }
+                }
+              });
+
+              // Check if episode is marked as played
               const isPlayed = playedForFeed.includes(audioUrl);
               if (isPlayed) {
                 div.classList.add('played');
               }
-              
+
+              // Add play button
               const playButton = createPlayButton(audioUrl, title);
               div.appendChild(playButton);
+
+              // Add content div with title and info
               div.appendChild(contentDiv);
-              
+
+              // Add mark as played/unplayed button
               const markPlayedButton = createMarkPlayedButton(audioUrl, title, feedUrl, isPlayed);
               div.appendChild(markPlayedButton);
-              
+
               episodesContainer.appendChild(div);
             }
           }
@@ -659,44 +741,68 @@ function initializeExtensionFeatures() {
   // Save position when switching audio or closing
   window.addEventListener('beforeunload', savePosition);
 
-  // Function to create play button (simplified without resume indicator)
+  // Function to create play button for both podcasts and radio
   function createPlayButton(url, title) {
     const playBtn = document.createElement('button');
     playBtn.className = 'audio-control';
-    playBtn.textContent = '⏵';  // Unicode play triangle
+    playBtn.textContent = '⏵';
     playBtn.title = 'Play';
+    playBtn.dataset.url = url;
 
-    // Update this button's state when playback state changes
-    player.addEventListener('play', () => {
-      if (player.src === url) {
-        playBtn.textContent = '⏸';  // Unicode pause symbol
-        playBtn.title = 'Pause';
-      } else {
-        playBtn.textContent = '⏵';  // Reset other buttons
-        playBtn.title = 'Play';
-      }
-    });
-
-    player.addEventListener('pause', () => {
-      if (player.src === url) {
-        playBtn.textContent = '⏵';  // Unicode play triangle
-        playBtn.title = 'Play';
-      }
-    });
-
-    playBtn.addEventListener('click', (e) => {
+    playBtn.addEventListener('click', async (e) => {
       e.stopPropagation();
+      
+      // Stop other episodes and reset their buttons
+      const allPlayBtns = document.querySelectorAll('.audio-control:not(.mark-played)');
+      allPlayBtns.forEach(btn => {
+        if (btn !== playBtn) {
+          btn.textContent = '⏵';
+        }
+      });
 
-      if (player.src === url) {
-        if (player.paused) {
-          player.play().catch(err => {
-            console.log('Play failed:', err);
-          });
-        } else {
-          player.pause();
+      if (playBtn.textContent === '⏵') {
+        try {
+          // Load saved progress before starting playback
+          const progressData = await chrome.storage.local.get('episodeProgress');
+          const savedProgress = progressData.episodeProgress?.[url];
+          
+          // Set source and position
+          if (player.src !== url) {
+            player.src = url;
+            // Only set saved position if we have one and we're changing episodes
+            if (savedProgress?.currentTime > 0) {
+              player.currentTime = savedProgress.currentTime;
+            } else {
+              player.currentTime = 0;
+            }
+          }
+          
+          await player.play();
+          playBtn.textContent = '⏸';
+          currentlyPlayingUrl = url;
+          nowPlaying.textContent = title;
+        } catch (err) {
+          console.error('Playback failed:', err);
+          playBtn.textContent = '⏵';
+          currentlyPlayingUrl = null;
+          handlePlaybackError(err, playBtn.closest('.audio-item'), playBtn);
         }
       } else {
-        playAudio(url, title);
+        // Pausing playback - save current progress
+        const progress = {
+          currentTime: player.currentTime,
+          duration: player.duration,
+          lastPlayed: new Date().toISOString()
+        };
+        
+        const progressData = await chrome.storage.local.get('episodeProgress');
+        const allProgress = progressData.episodeProgress || {};
+        allProgress[url] = progress;
+        await chrome.storage.local.set({ episodeProgress: allProgress });
+        
+        player.pause();
+        playBtn.textContent = '⏵';
+        currentlyPlayingUrl = null;
       }
     });
 
@@ -1068,29 +1174,112 @@ function initializeExtensionFeatures() {
               contentDiv.appendChild(titleSpan);
               
               if (pubDate) {
-                const dateDiv = document.createElement('div');
-                dateDiv.className = 'audio-date';
+                const infoDiv = document.createElement('div');
+                infoDiv.className = 'audio-info';
+                
+                const progressSpan = document.createElement('span');
+                progressSpan.className = 'audio-progress';
+                progressSpan.textContent = '0:00/--:--';  // Default before duration is known
+                
+                const dateSpan = document.createElement('span');
+                dateSpan.className = 'audio-date';
                 const date = new Date(pubDate);
-                dateDiv.textContent = 'Publication date: ' + date.toLocaleDateString('en-US', {
+                dateSpan.textContent = ' • Publication date: ' + date.toLocaleDateString('en-US', {
                   year: 'numeric',
                   month: 'long',
                   day: 'numeric'
                 });
-                contentDiv.appendChild(dateDiv);
+                
+                infoDiv.appendChild(progressSpan);
+                infoDiv.appendChild(dateSpan);
+                contentDiv.appendChild(infoDiv);
               }
               
+              // Format time helper function
+              const formatTime = (seconds) => {
+                const hrs = Math.floor(seconds / 3600);
+                const mins = Math.floor((seconds % 3600) / 60);
+                const secs = Math.floor(seconds % 60);
+                if (hrs > 0) {
+                  return `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+                }
+                return `${mins}:${secs.toString().padStart(2, '0')}`;
+              };
+
+              // Create audio element for duration and progress tracking
+              const audio = new Audio();
+              audio.preload = 'metadata';  // Only load metadata to get duration
+              audio.src = audioUrl;
+
+              // Load duration when metadata is loaded
+              audio.addEventListener('loadedmetadata', () => {
+                const totalTime = formatTime(audio.duration);
+                const currentTime = formatTime(audio.currentTime);
+                const progressSpan = div.querySelector('.audio-progress');
+                if (progressSpan) {
+                  progressSpan.textContent = `${currentTime}/${totalTime}`;
+                }
+              });
+
+              // Update time display during playback
+              audio.addEventListener('timeupdate', () => {
+                const totalTime = formatTime(audio.duration);
+                const currentTime = formatTime(audio.currentTime);
+                const progressSpan = div.querySelector('.audio-progress');
+                if (progressSpan) {
+                  progressSpan.textContent = `${currentTime}/${totalTime}`;
+                }
+              });
+
+              // Store progress when playback stops
+              audio.addEventListener('pause', async () => {
+                const progress = {
+                  currentTime: audio.currentTime,
+                  duration: audio.duration,
+                  lastPlayed: new Date().toISOString()
+                };
+                
+                // Get existing progress data
+                const progressData = await chrome.storage.local.get('episodeProgress') || {};
+                const allProgress = progressData.episodeProgress || {};
+                
+                // Update progress for this episode
+                allProgress[audioUrl] = progress;
+                
+                // Save back to storage
+                await chrome.storage.local.set({ episodeProgress: allProgress });
+              });
+
+              // Load saved progress when creating episode
+              chrome.storage.local.get('episodeProgress').then(data => {
+                const progress = data.episodeProgress?.[audioUrl];
+                if (progress) {
+                  const currentTime = formatTime(progress.currentTime);
+                  const totalTime = formatTime(progress.duration);
+                  const progressSpan = div.querySelector('.audio-progress');
+                  if (progressSpan) {
+                    progressSpan.textContent = `${currentTime}/${totalTime}`;
+                  }
+                }
+              });
+
+              // Check if episode is marked as played
               const isPlayed = playedForFeed.includes(audioUrl);
               if (isPlayed) {
                 div.classList.add('played');
               }
-              
+
+              // Add play button
               const playButton = createPlayButton(audioUrl, title);
               div.appendChild(playButton);
+
+              // Add content div with title and info
               div.appendChild(contentDiv);
-              
+
+              // Add mark as played/unplayed button
               const markPlayedButton = createMarkPlayedButton(audioUrl, title, feedUrl, isPlayed);
               div.appendChild(markPlayedButton);
-              
+
               episodesContainer.appendChild(div);
             }
           }
@@ -1203,16 +1392,94 @@ function initializeExtensionFeatures() {
 
         // Add date if available
         if (pubDate) {
-          const dateDiv = document.createElement('div');
-          dateDiv.className = 'audio-date';
+          const infoDiv = document.createElement('div');
+          infoDiv.className = 'audio-info';
+          
+          const progressSpan = document.createElement('span');
+          progressSpan.className = 'audio-progress';
+          progressSpan.textContent = '0:00/--:--';  // Default before duration is known
+          
+          const dateSpan = document.createElement('span');
+          dateSpan.className = 'audio-date';
           const date = new Date(pubDate);
-          dateDiv.textContent = 'Publication date: ' + date.toLocaleDateString('en-US', {
+          dateSpan.textContent = ' • Publication date: ' + date.toLocaleDateString('en-US', {
             year: 'numeric',
             month: 'long',
             day: 'numeric'
           });
-          contentDiv.appendChild(dateDiv);
+          
+          infoDiv.appendChild(progressSpan);
+          infoDiv.appendChild(dateSpan);
+          contentDiv.appendChild(infoDiv);
         }
+
+        // Format time helper function
+        const formatTime = (seconds) => {
+          const hrs = Math.floor(seconds / 3600);
+          const mins = Math.floor((seconds % 3600) / 60);
+          const secs = Math.floor(seconds % 60);
+          if (hrs > 0) {
+            return `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+          }
+          return `${mins}:${secs.toString().padStart(2, '0')}`;
+        };
+
+        // Create audio element for duration and progress tracking
+        const audio = new Audio();
+        audio.preload = 'metadata';  // Only load metadata to get duration
+        audio.src = audioUrl;
+
+        // Load duration when metadata is loaded
+        audio.addEventListener('loadedmetadata', () => {
+          const totalTime = formatTime(audio.duration);
+          const currentTime = formatTime(audio.currentTime);
+          const progressSpan = div.querySelector('.audio-progress');
+          if (progressSpan) {
+            progressSpan.textContent = `${currentTime}/${totalTime}`;
+          }
+        });
+
+        // Update time display during playback
+        audio.addEventListener('timeupdate', () => {
+          const totalTime = formatTime(audio.duration);
+          const currentTime = formatTime(audio.currentTime);
+          const progressSpan = div.querySelector('.audio-progress');
+          if (progressSpan) {
+            progressSpan.textContent = `${currentTime}/${totalTime}`;
+          }
+        });
+
+        // Store progress when playback stops
+        audio.addEventListener('pause', async () => {
+          const progress = {
+            currentTime: audio.currentTime,
+            duration: audio.duration,
+            lastPlayed: new Date().toISOString()
+          };
+          
+          // Get existing progress data
+          const progressData = await chrome.storage.local.get('episodeProgress') || {};
+          const allProgress = progressData.episodeProgress || {};
+          
+          // Update progress for this episode
+          allProgress[audioUrl] = progress;
+          
+          // Save back to storage
+          await chrome.storage.local.set({ episodeProgress: allProgress });
+        });
+
+        // Load saved progress when creating episode
+        chrome.storage.local.get('episodeProgress').then(data => {
+          const progress = data.episodeProgress?.[audioUrl];
+          if (progress) {
+            const currentTime = formatTime(progress.currentTime);
+            const totalTime = formatTime(progress.duration);
+            const progressSpan = div.querySelector('.audio-progress');
+            if (progressSpan) {
+              progressSpan.textContent = `${currentTime}/${totalTime}`;
+            }
+          }
+        });
 
         // Check if episode is marked as played
         const isPlayed = playedForFeed.includes(audioUrl);
@@ -1220,11 +1487,11 @@ function initializeExtensionFeatures() {
           div.classList.add('played');
         }
 
-        // Add play button (without resume indicator)
+        // Add play button
         const playButton = createPlayButton(audioUrl, title);
         div.appendChild(playButton);
 
-        // Add content div with title and date
+        // Add content div with title and info
         div.appendChild(contentDiv);
 
         // Add mark as played/unplayed button
@@ -1409,3 +1676,171 @@ player.addEventListener('error', (e) => {
     handlePlaybackError(e.error || new Error('Playback failed'), channelContent, playBtn);
   }
 });
+
+// Function to play live channel
+function playLiveChannel(url, title) {
+  // Stop any podcast playback
+  const allPlayBtns = document.querySelectorAll('.audio-control:not(.mark-played)');
+  allPlayBtns.forEach(btn => {
+    btn.textContent = '⏵';
+  });
+  
+  player.src = url;
+  player.play().catch(err => {
+    console.error('Failed to play live channel:', err);
+  });
+  currentlyPlayingUrl = url;
+  nowPlaying.textContent = title;
+}
+
+// Update progress display for the current episode
+function updateProgressDisplay(url) {
+  if (!url) return;
+  
+  const progressSpan = document.querySelector(`[data-url="${url}"]`)
+    ?.closest('.audio-item')
+    ?.querySelector('.audio-progress');
+    
+  if (progressSpan) {
+    const currentTime = formatTime(player.currentTime);
+    const totalTime = formatTime(player.duration);
+    progressSpan.textContent = `${currentTime}/${totalTime}`;
+  }
+}
+
+// Add timeupdate listener to update progress
+player.addEventListener('timeupdate', () => {
+  if (currentlyPlayingUrl) {
+    updateProgressDisplay(currentlyPlayingUrl);
+  }
+});
+
+// Function to load and display live channels
+function loadLiveChannels() {
+  const channelList = document.getElementById('channelList');
+  const channelContent = channelList.querySelector('.section-content');
+  if (!channelContent) {
+    return;
+  }
+
+  console.log('Loading live channels...');
+  chrome.storage.local.get('liveChannels', (data) => {
+    const channels = data.liveChannels || [];
+    console.log('Found live channels:', channels);
+    channelContent.innerHTML = '';
+
+    // Create channels container
+    const channelsContainer = document.createElement('div');
+    channelsContainer.className = 'feed-container';
+
+    // Add header row
+    const header = document.createElement('div');
+    header.className = 'episode-header';
+    
+    const playHeader = document.createElement('div');
+    playHeader.className = 'header-play';
+    
+    const titleHeader = document.createElement('div');
+    titleHeader.className = 'header-title';
+    titleHeader.textContent = '';  // Remove 'Channel' text while keeping the structure
+
+    const spacerHeader = document.createElement('div');
+    spacerHeader.className = 'header-complete';
+    spacerHeader.style.visibility = 'hidden';  // Hidden but maintains spacing
+    
+    header.appendChild(playHeader);
+    header.appendChild(titleHeader);
+    header.appendChild(spacerHeader);
+    channelsContainer.appendChild(header);
+
+    // Add each channel
+    channels.forEach(channel => {
+      console.log('Adding channel:', channel.name);
+      const channelDiv = document.createElement('div');
+      channelDiv.className = 'audio-item';
+
+      // Create play button
+      const playBtn = document.createElement('button');
+      playBtn.className = 'audio-control';
+      playBtn.textContent = '⏵';
+      playBtn.title = 'Play';
+      playBtn.dataset.url = channel.url;  // Add URL as data attribute
+
+      // Create channel content
+      const contentDiv = document.createElement('div');
+      contentDiv.className = 'audio-content';
+      
+      const titleDiv = document.createElement('div');
+      titleDiv.className = 'audio-title';
+      titleDiv.textContent = channel.name;
+      
+      const descDiv = document.createElement('div');
+      descDiv.className = 'audio-date';  // Using audio-date for consistent styling
+      descDiv.textContent = channel.description;
+      
+      contentDiv.appendChild(titleDiv);
+      contentDiv.appendChild(descDiv);
+
+      // Add spacer div to maintain grid alignment
+      const spacerDiv = document.createElement('div');
+      spacerDiv.style.width = '30px';  // Match the width of the complete column
+
+      // Add click handler for play button
+      playBtn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        
+        const player = document.getElementById('player');
+        const nowPlaying = document.getElementById('nowPlaying');
+        
+        if (player.src === channel.url) {
+          // Same channel - just toggle play/pause
+          if (player.paused) {
+            player.play().catch(err => {
+              handlePlaybackError(err, contentDiv, playBtn);
+            });
+            playBtn.textContent = '⏸';
+          } else {
+            player.pause();
+            playBtn.textContent = '⏵';
+          }
+        } else {
+          // Different channel - stop current and play new
+          player.pause();
+          
+          // Reset all other play buttons
+          document.querySelectorAll('.audio-control').forEach(btn => {
+            btn.textContent = '⏵';
+          });
+          
+          // Clear any previous error messages
+          clearErrorMessages(contentDiv);
+
+          // Play this channel
+          try {
+            // First check if we can reach the URL
+            const checkResponse = await fetch(channel.url, { method: 'HEAD' });
+            if (!checkResponse.ok) {
+              throw new Error('NetworkError');
+            }
+
+            player.src = channel.url;
+            await player.play();  // Wait for play to succeed before changing button
+            playBtn.textContent = '⏸';
+            nowPlaying.textContent = channel.name;
+          } catch (err) {
+            playBtn.textContent = '⏵';  // Ensure button shows play state on error
+            handlePlaybackError(err, contentDiv, playBtn);
+          }
+        }
+      });
+
+      // Assemble channel item
+      channelDiv.appendChild(playBtn);
+      channelDiv.appendChild(contentDiv);
+      channelDiv.appendChild(spacerDiv);
+      channelsContainer.appendChild(channelDiv);
+    });
+
+    channelContent.appendChild(channelsContainer);
+  });
+}
