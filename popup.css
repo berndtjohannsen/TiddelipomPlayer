@@ -415,18 +415,17 @@ audio::-webkit-media-controls-toggle-closed-captions-button {
 }
 
 .feed-info-popup {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
+  position: fixed;  /* Change from absolute to fixed */
   background: white;
   border: 1px solid #ddd;
   border-radius: 4px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.1);
   z-index: 1000;
-  margin: 4px 0;
-  max-width: 100%;
+  max-width: 350px;  /* Match body width */
+  width: calc(100% - 20px);  /* Full width minus margins */
+  margin: 4px 10px;
   overflow: hidden;
+  /* top and left will be set dynamically in JavaScript */
 }
 
 .feed-info-content {

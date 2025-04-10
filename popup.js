@@ -326,6 +326,12 @@ function initializeStandaloneFeatures() {
         const copyright = channelInfo.querySelector('copyright')?.textContent || '';
         const lastBuildDate = channelInfo.querySelector('lastBuildDate')?.textContent || '';
         
+        // Remove any existing popup
+        const existingPopup = document.querySelector('.feed-info-popup');
+        if (existingPopup) {
+          existingPopup.remove();
+        }
+
         // Create popup content
         const infoContent = document.createElement('div');
         infoContent.className = 'feed-info-popup';
@@ -338,17 +344,14 @@ function initializeStandaloneFeatures() {
             <h3>${feedTitle}</h3>
             <p>${truncatedDesc}</p>
             ${link ? `<p><strong>Website:</strong> <a href="${link}" target="_blank">${link}</a></p>` : ''}
-            ${language ? `<p><strong>Language:</strong> ${language}</p>` : ''}
             ${copyright ? `<p><strong>Copyright:</strong> ${copyright}</p>` : ''}
-            ${lastBuildDate ? `<p><strong>Last updated:</strong> ${new Date(lastBuildDate).toLocaleDateString()}</p>` : ''}
+            ${lastBuildDate ? `<p><strong>Last updated:</strong> ${new Date(lastBuildDate).toLocaleDateString('en-US', {
+              month: 'long',
+              day: 'numeric',
+              year: 'numeric'
+            })}</p>` : ''}
           </div>
         `;
-        
-        // Remove any existing popup
-        const existingPopup = document.querySelector('.feed-info-popup');
-        if (existingPopup) {
-          existingPopup.remove();
-        }
         
         // Add close button
         const closeButton = document.createElement('button');
@@ -360,12 +363,28 @@ function initializeStandaloneFeatures() {
         });
         infoContent.insertBefore(closeButton, infoContent.firstChild);
         
-        // Add popup to the feed container
-        feedContainer.appendChild(infoContent);
+        // Calculate position
+        const iconRect = infoIcon.getBoundingClientRect();
+        const scrollTop = window.scrollY || document.documentElement.scrollTop;
+        
+        // Position the popup below the icon
+        infoContent.style.top = `${iconRect.bottom + 5}px`;  // 5px gap
+        infoContent.style.left = '10px';  // Match margin from CSS
+        
+        // Add to body instead of feed container for fixed positioning
+        document.body.appendChild(infoContent);
+        
+        // Adjust position if popup would go off screen
+        const popupRect = infoContent.getBoundingClientRect();
+        const viewportHeight = window.innerHeight;
+        if (popupRect.bottom > viewportHeight) {
+          // Position above the icon if it would go off screen below
+          infoContent.style.top = `${iconRect.top - popupRect.height - 5}px`;
+        }
         
         // Close popup when clicking outside
         document.addEventListener('click', function closePopup(e) {
-          if (!infoContent.contains(e.target)) {
+          if (!infoContent.contains(e.target) && e.target !== infoIcon) {
             infoContent.remove();
             document.removeEventListener('click', closePopup);
           }
@@ -965,6 +984,12 @@ function initializeExtensionFeatures() {
         const copyright = channelInfo.querySelector('copyright')?.textContent || '';
         const lastBuildDate = channelInfo.querySelector('lastBuildDate')?.textContent || '';
         
+        // Remove any existing popup
+        const existingPopup = document.querySelector('.feed-info-popup');
+        if (existingPopup) {
+          existingPopup.remove();
+        }
+
         // Create popup content
         const infoContent = document.createElement('div');
         infoContent.className = 'feed-info-popup';
@@ -977,17 +1002,14 @@ function initializeExtensionFeatures() {
             <h3>${feedTitle}</h3>
             <p>${truncatedDesc}</p>
             ${link ? `<p><strong>Website:</strong> <a href="${link}" target="_blank">${link}</a></p>` : ''}
-            ${language ? `<p><strong>Language:</strong> ${language}</p>` : ''}
             ${copyright ? `<p><strong>Copyright:</strong> ${copyright}</p>` : ''}
-            ${lastBuildDate ? `<p><strong>Last updated:</strong> ${new Date(lastBuildDate).toLocaleDateString()}</p>` : ''}
+            ${lastBuildDate ? `<p><strong>Last updated:</strong> ${new Date(lastBuildDate).toLocaleDateString('en-US', {
+              month: 'long',
+              day: 'numeric',
+              year: 'numeric'
+            })}</p>` : ''}
           </div>
         `;
-        
-        // Remove any existing popup
-        const existingPopup = document.querySelector('.feed-info-popup');
-        if (existingPopup) {
-          existingPopup.remove();
-        }
         
         // Add close button
         const closeButton = document.createElement('button');
@@ -999,12 +1021,28 @@ function initializeExtensionFeatures() {
         });
         infoContent.insertBefore(closeButton, infoContent.firstChild);
         
-        // Add popup to the feed container
-        feedContainer.appendChild(infoContent);
+        // Calculate position
+        const iconRect = infoIcon.getBoundingClientRect();
+        const scrollTop = window.scrollY || document.documentElement.scrollTop;
+        
+        // Position the popup below the icon
+        infoContent.style.top = `${iconRect.bottom + 5}px`;  // 5px gap
+        infoContent.style.left = '10px';  // Match margin from CSS
+        
+        // Add to body instead of feed container for fixed positioning
+        document.body.appendChild(infoContent);
+        
+        // Adjust position if popup would go off screen
+        const popupRect = infoContent.getBoundingClientRect();
+        const viewportHeight = window.innerHeight;
+        if (popupRect.bottom > viewportHeight) {
+          // Position above the icon if it would go off screen below
+          infoContent.style.top = `${iconRect.top - popupRect.height - 5}px`;
+        }
         
         // Close popup when clicking outside
         document.addEventListener('click', function closePopup(e) {
-          if (!infoContent.contains(e.target)) {
+          if (!infoContent.contains(e.target) && e.target !== infoIcon) {
             infoContent.remove();
             document.removeEventListener('click', closePopup);
           }
