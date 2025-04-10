@@ -87,27 +87,39 @@ body {
 
 /* Player container styles */
 .player-container {
-  background: white;
-  padding: 0 2px 12px 2px;  /* Reduced horizontal padding */
-  margin-bottom: 12px;
-  border-bottom: 1px solid #eee;
-  width: 100%;
-  box-sizing: border-box;
-}
-
-.player-wrapper {
-  width: 100%;
-  max-width: 400px;
-  overflow: hidden;
-  position: relative;
+  margin-bottom: 15px;
+  padding: 10px;
+  background: #f8f9fa;
+  border-radius: 8px;
 }
 
 #player {
-  width: 100% !important;
-  max-width: 430px !important;
-  min-width: 0 !important;
-  margin-bottom: 5px;
-  display: block;
+  width: 100%;
+  margin-bottom: 10px;
+  display: block !important;
+}
+
+/* Native audio controls styling */
+#player::-webkit-media-controls-panel {
+  background: #fff;
+}
+
+/* Hide only the timeline for radio streams */
+.player-container.radio #player::-webkit-media-controls-timeline {
+  display: none !important;
+}
+
+/* Ensure other controls remain visible for radio */
+#player::-webkit-media-controls-play-button,
+#player::-webkit-media-controls-volume-slider,
+#player::-webkit-media-controls-mute-button,
+#player::-webkit-media-controls-playback-rate-button {
+  display: flex !important;
+}
+
+#player::-webkit-media-controls-current-time-display,
+#player::-webkit-media-controls-time-remaining-display {
+  display: none;  /* Hide native time display since we have our own */
 }
 
 /* Target audio element and its shadow DOM */
@@ -193,47 +205,62 @@ audio::-webkit-media-controls-toggle-closed-captions-button {
   margin-left: 0;  /* Adjust for feed content indentation */
 }
 
-/* Episode grid layout */
+/* Episode grid layout - fixed alignment */
 .episode-header, .audio-item {
   display: grid;
-  grid-template-columns: 20px minmax(100px, auto) 30px;  /* Play | Content | Checkbox widths */
-  gap: 0;  /* Space between columns */
-  padding: 4px 0;  /* Vertical padding - affects row height */
+  grid-template-columns: 30px 1fr 30px;  /* Increased play button width */
+  gap: 8px;  /* Added gap between columns */
+  padding: 6px 4px;  /* Added horizontal padding */
   border-bottom: 1px solid #eee;
   align-items: center;
   min-height: 28px;
 }
 
-/* Checkbox column alignment */
-.audio-item > :last-child,
-.episode-header > :last-child {
-  text-align: right;
-  padding-right: 2px;  /* Space before window edge */
-}
-
-/* Episode content area */
-.audio-content {
-  overflow: hidden;
-  padding-right: 2px;  /* Space before checkbox */
-  padding-left: 2px;   /* Space after play button */
-  min-width: 0;
-  white-space: normal;
-}
-
-/* Play/checkbox controls */
+/* Play button alignment */
 .audio-control {
+  display: flex;
+  align-items: center;
+  justify-content: center;  /* Center the play button */
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  margin: 0;
   background: none;
   border: none;
   cursor: pointer;
-  padding: 0;
-  font-size: 1.2em;
+  font-size: 14px;
   color: #444;
-  width: 18px;   /* Control size */
-  height: 18px;  /* Control size */
+  border-radius: 50%;
+  transition: background-color 0.2s;
+}
+
+.audio-control:hover {
+  background-color: #e9ecef;
+}
+
+/* Content area alignment */
+.audio-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;  /* Allow content to shrink */
+  padding: 4px 8px;
+}
+
+.audio-title {
+  font-weight: 500;
+  margin-bottom: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.audio-info {
   display: flex;
   align-items: center;
-  justify-content: flex-start;  /* Left-align play button */
-  margin: 0;
+  gap: 8px;
+  font-size: 0.9em;
+  color: #666;
 }
 
 /* Feed headers */
@@ -259,14 +286,6 @@ audio::-webkit-media-controls-toggle-closed-captions-button {
 }
 
 /* Episode content styling */
-.audio-title {
-  font-weight: normal;
-  margin-bottom: 2px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .audio-date {
   font-size: 0.9em;
   color: #666;
@@ -317,16 +336,6 @@ audio::-webkit-media-controls-toggle-closed-captions-button {
   transform: rotate(-90deg);
 }
 
-.episode-header {
-  display: grid;
-  grid-template-columns: 20px minmax(100px, auto) 30px;
-  gap: 0;
-  padding: 4px 0;
-  border-bottom: 1px solid #eee;
-  font-weight: bold;
-  color: #666;
-}
-
 .audio-item {
   display: grid;
   grid-template-columns: 20px minmax(100px, auto) 30px;
@@ -353,15 +362,6 @@ audio::-webkit-media-controls-toggle-closed-captions-button {
   padding-left: 2px;
   min-width: 0;
   white-space: normal;
-}
-
-.audio-title {
-  font-weight: 500;
-  color: #333;
-  margin-bottom: 2px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .audio-date {
@@ -474,20 +474,9 @@ audio::-webkit-media-controls-toggle-closed-captions-button {
   color: #303030;
 }
 
-.audio-info {
-  display: flex;
-  align-items: center;
-  font-size: 12px;
-  color: #666;
-}
-
 .audio-progress {
   font-family: monospace;  /* For better alignment of time digits */
   color: #444;
-}
-
-.audio-date {
-  color: #666;
 }
 
 /* Hide default audio controls */
@@ -499,90 +488,126 @@ audio::-webkit-media-controls-toggle-closed-captions-button {
 .minimal-controls {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 4px 8px;
-  background: #f8f9fa;
-  border-radius: 4px;
-  margin: 4px 0;
+  gap: 10px;
+  margin-top: 5px;
+  border-top: 1px solid #ddd;
+  padding-top: 8px;
 }
 
 /* Volume control section */
 .volume-control {
   display: flex;
   align-items: center;
-  gap: 8px;
-  flex: 1;
+  gap: 5px;
 }
 
 /* Mute button */
 .control-btn {
   background: none;
   border: none;
-  padding: 4px;
   cursor: pointer;
-  font-size: 16px;
-  color: #444;
-  border-radius: 4px;
-  transition: background-color 0.2s;
+  padding: 5px;
+  font-size: 1.2em;
 }
 
 .control-btn:hover {
-  background-color: #e9ecef;
+  opacity: 0.8;
 }
 
 /* Volume slider */
 .slider {
-  flex: 1;
-  max-width: 100px;
-  height: 4px;
+  width: 100px;
+  height: 5px;
   -webkit-appearance: none;
-  background: #dee2e6;
-  border-radius: 2px;
+  background: #ddd;
   outline: none;
+  border-radius: 3px;
 }
 
 .slider::-webkit-slider-thumb {
   -webkit-appearance: none;
-  width: 12px;
-  height: 12px;
+  width: 15px;
+  height: 15px;
+  background: #007bff;
   border-radius: 50%;
-  background: #1976d2;
   cursor: pointer;
-  transition: background-color 0.2s;
-}
-
-.slider::-webkit-slider-thumb:hover {
-  background: #1565c0;
 }
 
 /* Speed control */
 .speed-select {
-  padding: 2px 4px;
-  border: 1px solid #dee2e6;
+  padding: 4px 8px;
   border-radius: 4px;
+  border: 1px solid #ddd;
   background: white;
   color: #444;
-  font-size: 12px;
+  font-size: 0.9em;
   cursor: pointer;
-  outline: none;
-  transition: border-color 0.2s;
+  transition: all 0.2s ease;
 }
 
 .speed-select:hover {
-  border-color: #adb5bd;
+  border-color: #007bff;
 }
 
 .speed-select:focus {
-  border-color: #1976d2;
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 2px rgba(0,123,255,0.25);
 }
 
 .now-playing {
-  font-size: 12px;
+  font-size: 0.9em;
   color: #666;
-  padding: 4px 8px;
   text-align: center;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  min-height: 16px;
+  margin-top: 5px;
+}
+
+/* Custom seek control */
+.seek-control {
+  margin: 8px 0;
+  padding: 0 8px;
+}
+
+.seek-slider-container {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.seek-control .slider {
+  width: 100%;
+  height: 4px;
+  -webkit-appearance: none;
+  background: #ddd;
+  outline: none;
+  border-radius: 2px;
+  margin-bottom: 4px;
+}
+
+.seek-control .slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px;
+  height: 12px;
+  background: #007bff;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.seek-control .slider::-webkit-slider-thumb:hover {
+  background: #0056b3;
+}
+
+.time-display {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8em;
+  color: #666;
+  font-family: monospace;
+}
+
+/* Speed control styling */
+.speed-control {
+  display: flex;
+  justify-content: center;
+  margin: 8px 0;
 } 
