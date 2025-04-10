@@ -35,7 +35,7 @@ function loadLiveChannels() {
     
     const titleHeader = document.createElement('div');
     titleHeader.className = 'header-title';
-    titleHeader.textContent = 'Channel';
+    titleHeader.textContent = '';  // Remove 'Channel' text while keeping the structure
 
     const spacerHeader = document.createElement('div');
     spacerHeader.className = 'header-complete';
@@ -564,33 +564,8 @@ function initializeExtensionFeatures() {
 
       try {
         player.src = channel.url;
-        player.play().catch(err => {
-          playBtn.textContent = '⏵';
-          
-          // Show user-friendly error message based on error type
-          let errorMessage = 'Could not play this audio stream';
-          if (err instanceof DOMException) {
-            if (err.name === 'NotSupportedError' && !navigator.onLine) {
-              // If we're offline, show network error instead of format error
-              errorMessage = 'Cannot play audio - please check your internet connection';
-            } else if (err.name === 'NotSupportedError') {
-              errorMessage = 'This audio format is not supported';
-            } else if (err.name === 'NotAllowedError') {
-              errorMessage = 'Playback was blocked by your browser';
-            } else if (err.name === 'AbortError') {
-              errorMessage = 'Playback was interrupted';
-            } else if (err.name === 'NetworkError') {
-              errorMessage = 'Cannot play audio - please check your internet connection';
-            }
-          }
-          
-          const errorDiv = document.createElement('div');
-          errorDiv.className = 'audio-error';
-          errorDiv.textContent = errorMessage;
-          contentDiv.appendChild(errorDiv);
-          
-          // Clear now playing
-          nowPlaying.textContent = '';
+        player.play().catch(e => {
+          handlePlaybackError(e.error || new Error('Playback failed'), contentDiv, playBtn);
         });
         playBtn.textContent = '⏸';
         nowPlaying.textContent = channel.name;
@@ -657,6 +632,9 @@ function initializeExtensionFeatures() {
     }
     podContent.innerHTML = '';
     
+    let totalEpisodes = 0;
+    let latestDate = null;
+
     for (const feedUrl of feeds) {
       const result = await tryParseRss(feedUrl);
       if (!result.success) continue;
@@ -667,8 +645,34 @@ function initializeExtensionFeatures() {
         item.querySelector('enclosure')?.getAttribute('type') === 'audio/mpeg'
       );
 
+      totalEpisodes += audioItems.length;
+
+      // Update latest date
+      audioItems.forEach(item => {
+        const pubDate = item.querySelector('pubDate')?.textContent;
+        if (pubDate) {
+          const date = new Date(pubDate);
+          if (!latestDate || date > latestDate) {
+            latestDate = date;
+          }
+        }
+      });
+
       // Get the feed title
       const feedTitle = xmlDoc.querySelector('channel > title')?.textContent || new URL(feedUrl).hostname;
+      
+      // Calculate episode count and latest date for this feed
+      const episodeCount = audioItems.length;
+      let feedLatestDate = null;
+      audioItems.forEach(item => {
+        const pubDate = item.querySelector('pubDate')?.textContent;
+        if (pubDate) {
+          const date = new Date(pubDate);
+          if (!feedLatestDate || date > feedLatestDate) {
+            feedLatestDate = date;
+          }
+        }
+      });
       
       // Create feed container
       const feedContainer = document.createElement('div');
@@ -683,7 +687,8 @@ function initializeExtensionFeatures() {
       toggleIcon.textContent = '▼';
       
       const titleText = document.createElement('span');
-      titleText.textContent = feedTitle;
+      const dateStr = feedLatestDate ? feedLatestDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+      titleText.textContent = `${feedTitle} (${episodeCount}) ${dateStr}`;
       
       separator.appendChild(toggleIcon);
       separator.appendChild(titleText);
@@ -798,6 +803,12 @@ function initializeExtensionFeatures() {
 
         episodesContainer.appendChild(div);
       }
+    }
+
+    // Remove the main Pods header update since we're showing info per feed
+    const podsHeader = document.querySelector('#audioList .section-header span:not(.toggle-icon)');
+    if (podsHeader) {
+      podsHeader.textContent = 'Pods';
     }
   }
 
