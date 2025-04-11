@@ -3,6 +3,7 @@
 
 # Other common files to ignore
 node_modules/
+original/
 .DS_Store
 *.log 
 test*

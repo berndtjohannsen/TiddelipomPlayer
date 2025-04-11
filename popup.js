@@ -18,6 +18,85 @@ function formatTime(seconds) {
   return `${mins}:${secs.toString().padStart(2, '0')}`;
 }
 
+// Function to create episode element
+function createEpisodeElement(item, feedUrl) {
+  const episodeDiv = document.createElement('div');
+  episodeDiv.className = 'audio-item';
+  
+  const playBtn = document.createElement('button');
+  playBtn.className = 'audio-control';
+  playBtn.textContent = '⏵';
+  playBtn.dataset.url = item.url;
+  playBtn.addEventListener('click', () => playAudio(item.url, item.title));
+  
+  const contentDiv = document.createElement('div');
+  contentDiv.className = 'audio-content';
+  
+  const titleSpan = document.createElement('div');
+  titleSpan.className = 'audio-title';
+  titleSpan.textContent = item.title;
+  contentDiv.appendChild(titleSpan);
+  
+  if (item.date) {
+    const infoDiv = document.createElement('div');
+    infoDiv.className = 'audio-info';
+    
+    const progressSpan = document.createElement('span');
+    progressSpan.className = 'audio-progress';
+    progressSpan.textContent = '0:00/--:--';
+    
+    const dateSpan = document.createElement('span');
+    dateSpan.className = 'audio-date';
+    const date = new Date(item.date);
+    dateSpan.textContent = ' • Publication date: ' + date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+    
+    infoDiv.appendChild(progressSpan);
+    infoDiv.appendChild(dateSpan);
+    contentDiv.appendChild(infoDiv);
+  }
+  
+  episodeDiv.appendChild(playBtn);
+  episodeDiv.appendChild(contentDiv);
+  episodeDiv.appendChild(createMarkPlayedButton(item.url, item.title, feedUrl));
+  
+  // Create audio element for duration and progress tracking
+  const audio = new Audio();
+  audio.preload = 'metadata';  // Only load metadata to get duration
+  audio.src = item.url;
+
+  // Load duration when metadata is loaded
+  audio.addEventListener('loadedmetadata', () => {
+    const totalTime = formatTime(audio.duration);
+    const currentTime = formatTime(0);  // Start at 0
+    const progressSpan = episodeDiv.querySelector('.audio-progress');
+    if (progressSpan) {
+      progressSpan.textContent = `${currentTime}/${totalTime}`;
+    }
+    
+    // Save the duration for future use
+    saveEpisodeProgress(item.url, 0, audio.duration);
+  });
+
+  // Load saved progress if available
+  chrome.storage.local.get('episodeProgress', (data) => {
+    const progress = data.episodeProgress?.[item.url];
+    if (progress?.currentTime > 0) {  // Only update if we have a saved position
+      const progressSpan = episodeDiv.querySelector('.audio-progress');
+      if (progressSpan) {
+        const currentTimeStr = formatTime(progress.currentTime);
+        const durationStr = formatTime(progress.duration);
+        progressSpan.textContent = `${currentTimeStr}/${durationStr}`;
+      }
+    }
+  });
+  
+  return episodeDiv;
+}
+
 // Wait for DOM to be ready before doing anything
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', initializePopup);
@@ -309,51 +388,42 @@ function initializeStandaloneFeatures() {
           // Re-fetch and parse this specific feed
           const result = await tryParseRss(feedUrl);
           if (result.success) {
-            // Clear existing episodes
-            episodesContainer.innerHTML = '';
-            
-            // Process items and create episode elements
-            const podcastItems = Array.from(result.xmlDoc.querySelectorAll('item')).map(item => ({
+            // Process items
+            const refreshedItems = Array.from(result.xmlDoc.querySelectorAll('item')).map(item => ({
               title: item.querySelector('title')?.textContent || 'Untitled',
               url: item.querySelector('enclosure')?.getAttribute('url') || '',
               date: item.querySelector('pubDate')?.textContent || ''
             })).filter(item => item.url);
 
-            // Show first 5 episodes
-            const initialEpisodes = podcastItems.slice(0, 5);
-            const remainingEpisodes = podcastItems.slice(5);
+            // Load episodes using our new function
+            const { remaining, hasMore } = loadEpisodes(refreshedItems, feedUrl, episodesContainer);
 
-            // Add initial episodes
-            initialEpisodes.forEach(item => {
-              const episodeDiv = createEpisodeElement(item, feedUrl);
-              episodesContainer.appendChild(episodeDiv);
-            });
-
-            // Add load more button if there are remaining episodes
-            if (remainingEpisodes.length > 0) {
-              const loadMoreBtn = document.createElement('button');
-              loadMoreBtn.className = 'load-more-button';
-              loadMoreBtn.textContent = `Load 5 more episodes`;
-              loadMoreBtn.addEventListener('click', () => {
-                // Take next 5 episodes
-                const nextEpisodes = remainingEpisodes.splice(0, 5);
+            // Update load more button if needed
+            const existingLoadMoreBtn = episodesContainer.querySelector('.load-more-button');
+            if (hasMore) {
+              if (!existingLoadMoreBtn) {
+                const loadMoreBtn = document.createElement('button');
+                loadMoreBtn.className = 'load-more-button';
+                loadMoreBtn.textContent = 'Load 5 more episodes';
                 
-                // Remove the button temporarily
-                loadMoreBtn.remove();
-                
-                // Add next episodes
-                nextEpisodes.forEach(item => {
-                  const episodeDiv = createEpisodeElement(item, feedUrl);
-                  episodesContainer.appendChild(episodeDiv);
+                loadMoreBtn.addEventListener('click', () => {
+                  loadMoreBtn.remove();
+                  const { remaining: newRemaining, hasMore: newHasMore } = loadEpisodes(
+                    refreshedItems,
+                    feedUrl,
+                    episodesContainer,
+                    refreshedItems.length - remaining.length
+                  );
+                  
+                  if (newHasMore) {
+                    episodesContainer.appendChild(loadMoreBtn);
+                  }
                 });
                 
-                // Add the button back if there are more episodes
-                if (remainingEpisodes.length > 0) {
-                  episodesContainer.appendChild(loadMoreBtn);
-                }
-              });
-              
-              episodesContainer.appendChild(loadMoreBtn);
+                episodesContainer.appendChild(loadMoreBtn);
+              }
+            } else if (existingLoadMoreBtn) {
+              existingLoadMoreBtn.remove();
             }
           }
         } catch (error) {
@@ -405,8 +475,39 @@ function initializeStandaloneFeatures() {
       const episodesContainer = document.createElement('div');
       episodesContainer.className = 'feed-episodes';
 
-      // Remove header row code and directly start adding episodes
+      // Load initial episodes
+      const { remaining, hasMore } = loadEpisodes(podcastItems, feedUrl, episodesContainer);
+
+      // Add load more button if there are remaining episodes
+      if (hasMore) {
+        const loadMoreBtn = document.createElement('button');
+        loadMoreBtn.className = 'load-more-button';
+        loadMoreBtn.textContent = 'Load 5 more episodes';
+        
+        loadMoreBtn.addEventListener('click', () => {
+          loadMoreBtn.remove();
+          const { remaining: newRemaining, hasMore: newHasMore } = loadEpisodes(
+            podcastItems,
+            feedUrl,
+            episodesContainer,
+            podcastItems.length - remaining.length
+          );
+          
+          if (newHasMore) {
+            episodesContainer.appendChild(loadMoreBtn);
+          }
+        });
+        
+        episodesContainer.appendChild(loadMoreBtn);
+      }
+
+      // Add containers to feed
+      separator.appendChild(toggleIcon);
+      separator.appendChild(titleContainer);
+      separator.appendChild(iconsContainer);
+      feedContainer.appendChild(separator);
       feedContainer.appendChild(episodesContainer);
+      podContent.appendChild(feedContainer);
 
       // Add click handler for expand/collapse
       separator.addEventListener('click', () => {
@@ -414,8 +515,6 @@ function initializeStandaloneFeatures() {
         episodesContainer.classList.toggle('collapsed');
         toggleIcon.textContent = separator.classList.contains('collapsed') ? '▶' : '▼';
       });
-
-      podContent.appendChild(feedContainer);
     });
   }
 
@@ -440,6 +539,56 @@ function initializeStandaloneFeatures() {
   player.addEventListener('pause', () => {
     // Basic pause handling
   });
+}
+
+// Function to create mark played button
+function createMarkPlayedButton(audioUrl, title, feedUrl) {
+  const button = document.createElement('button');
+  button.className = 'audio-control mark-played';
+  button.textContent = '☐';
+  button.title = 'Mark as played';
+  
+  // Check if episode is already marked as played
+  chrome.storage.local.get('playedEpisodes', (data) => {
+    const playedEpisodes = data.playedEpisodes || {};
+    const feedEpisodes = playedEpisodes[feedUrl] || [];
+    if (feedEpisodes.includes(audioUrl)) {
+      button.textContent = '☑';
+      button.title = 'Mark as unplayed';
+    }
+  });
+
+  button.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    
+    // Get current played episodes
+    const data = await chrome.storage.local.get('playedEpisodes');
+    const playedEpisodes = data.playedEpisodes || {};
+    const feedEpisodes = playedEpisodes[feedUrl] || [];
+    
+    if (button.textContent === '☐') {
+      // Mark as played
+      button.textContent = '☑';
+      button.title = 'Mark as unplayed';
+      if (!feedEpisodes.includes(audioUrl)) {
+        feedEpisodes.push(audioUrl);
+      }
+    } else {
+      // Mark as unplayed
+      button.textContent = '☐';
+      button.title = 'Mark as played';
+      const index = feedEpisodes.indexOf(audioUrl);
+      if (index !== -1) {
+        feedEpisodes.splice(index, 1);
+      }
+    }
+    
+    // Update storage
+    playedEpisodes[feedUrl] = feedEpisodes;
+    await chrome.storage.local.set({ playedEpisodes });
+  });
+
+  return button;
 }
 
 function initializeExtensionFeatures() {
@@ -476,11 +625,23 @@ function initializeExtensionFeatures() {
   function savePosition() {
     const currentUrl = player.src;
     if (currentUrl && player.currentTime > 0) {
-      chrome.storage.local.get('playbackPositions', (data) => {
-        const positions = data.playbackPositions || {};
-        positions[currentUrl] = player.currentTime;
-        chrome.storage.local.set({ playbackPositions: positions });
-      });
+      try {
+        chrome.storage.local.get('playbackPositions', (data) => {
+          try {
+            const positions = data.playbackPositions || {};
+            positions[currentUrl] = player.currentTime;
+            chrome.storage.local.set({ playbackPositions: positions });
+          } catch (err) {
+            console.warn('Error saving playback position:', err);
+            // Clear the interval if we can't save
+            clearInterval(savePositionInterval);
+          }
+        });
+      } catch (err) {
+        console.warn('Error accessing storage:', err);
+        // Clear the interval if we can't access storage
+        clearInterval(savePositionInterval);
+      }
     }
   }
 
@@ -577,90 +738,55 @@ function initializeExtensionFeatures() {
 
   // Modified playAudio function to properly handle position restoration
   function playAudio(url, title) {
-    // Stop current playback before loading new audio
+    const player = document.getElementById('player');
+    const nowPlaying = document.getElementById('nowPlaying');
+    
+    // If this is the same episode and it's already playing, pause it
+    if (player.src === url && !player.paused) {
+      player.pause();
+      if (playBtn) {
+        playBtn.textContent = '⏵';
+      }
+      return;
+    }
+    
+    // Stop current playback
     player.pause();
     
-    // Load and play the new audio, restoring position if available
-    chrome.storage.local.get(['episodeProgress', 'playedEpisodes'], async (data) => {
-      const progress = data.episodeProgress?.[url] || {};
-      const playedEpisodes = data.playedEpisodes || {};
-      const isPlayed = Object.values(playedEpisodes).some(urls => urls.includes(url));
+    // Reset all play buttons
+    document.querySelectorAll('.audio-control:not(.mark-played)').forEach(btn => {
+      btn.textContent = '⏵';
+    });
+    
+    // Check for saved position
+    chrome.storage.local.get('episodeProgress', (data) => {
+      const progress = data.episodeProgress?.[url];
       
-      try {
-        // Reset all other play buttons first
-        const allPlayBtns = document.querySelectorAll('.audio-control:not(.mark-played)');
-        allPlayBtns.forEach(btn => {
-          if (btn.dataset.url === url) {
-            btn.textContent = '⏸';
-          } else {
-            btn.textContent = '⏵';
-          }
-        });
-
-        player.src = url;
-        currentlyPlayingUrl = url;
-        nowPlaying.textContent = title;
-
-        // If episode is not marked as played and we have a saved position, restore it
-        if (!isPlayed && progress.currentTime > 0) {
-          player.currentTime = progress.currentTime;
-        } else {
-          player.currentTime = 0;
-        }
-
-        // Update progress display immediately
-        if (progress.duration) {
-          updateEpisodeProgress(progress.currentTime || 0, progress.duration);
-        }
-
-        await player.play();
-      } catch (err) {
-        console.error('Play failed:', err);
-        if (err.name === 'AbortError') {
-          nowPlaying.textContent = '';
-        }
-        // Reset play button on error
+      // Set new source and play
+      player.src = url;
+      
+      // If we have a saved position, restore it
+      if (progress?.currentTime > 0) {
+        player.currentTime = progress.currentTime;
+      }
+      
+      player.play().catch(err => {
+        console.error('Playback failed:', err);
         const playBtn = document.querySelector(`.audio-control[data-url="${url}"]`);
         if (playBtn) {
           playBtn.textContent = '⏵';
         }
-        currentlyPlayingUrl = null;
-      }
+      });
     });
-  }
-
-  // Function to mark episode as played/unplayed (simplified)
-  function createMarkPlayedButton(audioUrl, title, feedUrl, isPlayed) {
-    const button = document.createElement('button');
-    button.textContent = isPlayed ? '☑' : '☐';  // Use checkbox icons
-    button.className = 'audio-control mark-played';
-    button.title = isPlayed ? 'Mark as unplayed' : 'Mark as played';
-
-    button.addEventListener('click', async () => {
-      // Clear any previous error messages
-      const existingError = contentDiv.querySelector('.audio-error');
-      if (existingError) {
-        existingError.remove();
-      }
-
-      try {
-        player.src = channel.url;
-        player.play().catch(e => {
-          handlePlaybackError(e.error || new Error('Playback failed'), contentDiv, playBtn);
-        });
-        playBtn.textContent = '⏸';
-        nowPlaying.textContent = channel.name;
-      } catch (err) {
-        playBtn.textContent = '⏵';
-        
-        const errorDiv = document.createElement('div');
-        errorDiv.className = 'audio-error';
-        errorDiv.textContent = 'Cannot play audio - please check your internet connection';
-        contentDiv.appendChild(errorDiv);
-      }
-    });
-
-    return button;
+    
+    // Update now playing text
+    nowPlaying.textContent = title;
+    
+    // Update play button
+    const playBtn = document.querySelector(`.audio-control[data-url="${url}"]`);
+    if (playBtn) {
+      playBtn.textContent = '⏸';
+    }
   }
 
   // Try to parse RSS feed
@@ -704,85 +830,6 @@ function initializeExtensionFeatures() {
         }
       });
     });
-  }
-
-  // Add duration handling when creating episode elements
-  function createEpisodeElement(item, feedUrl) {
-    const episodeDiv = document.createElement('div');
-    episodeDiv.className = 'audio-item';
-    
-    const playBtn = document.createElement('button');
-    playBtn.className = 'audio-control';
-    playBtn.textContent = '⏵';
-    playBtn.dataset.url = item.url;
-    playBtn.addEventListener('click', () => playAudio(item.url, item.title));
-    
-    const contentDiv = document.createElement('div');
-    contentDiv.className = 'audio-content';
-    
-    const titleSpan = document.createElement('div');
-    titleSpan.className = 'audio-title';
-    titleSpan.textContent = item.title;
-    contentDiv.appendChild(titleSpan);
-    
-    if (item.date) {
-      const infoDiv = document.createElement('div');
-      infoDiv.className = 'audio-info';
-      
-      const progressSpan = document.createElement('span');
-      progressSpan.className = 'audio-progress';
-      progressSpan.textContent = '0:00/--:--';
-      
-      const dateSpan = document.createElement('span');
-      dateSpan.className = 'audio-date';
-      const date = new Date(item.date);
-      dateSpan.textContent = ' • Publication date: ' + date.toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric'
-      });
-      
-      infoDiv.appendChild(progressSpan);
-      infoDiv.appendChild(dateSpan);
-      contentDiv.appendChild(infoDiv);
-    }
-    
-    episodeDiv.appendChild(playBtn);
-    episodeDiv.appendChild(contentDiv);
-    episodeDiv.appendChild(createMarkPlayedButton(item.url, item.title, feedUrl));
-    
-    // Create audio element for duration and progress tracking
-    const audio = new Audio();
-    audio.preload = 'metadata';  // Only load metadata to get duration
-    audio.src = item.url;
-
-    // Load duration when metadata is loaded
-    audio.addEventListener('loadedmetadata', () => {
-      const totalTime = formatTime(audio.duration);
-      const currentTime = formatTime(0);  // Start at 0
-      const progressSpan = episodeDiv.querySelector('.audio-progress');
-      if (progressSpan) {
-        progressSpan.textContent = `${currentTime}/${totalTime}`;
-      }
-      
-      // Save the duration for future use
-      saveEpisodeProgress(item.url, 0, audio.duration);
-    });
-
-    // Load saved progress if available
-    chrome.storage.local.get('episodeProgress', (data) => {
-      const progress = data.episodeProgress?.[item.url];
-      if (progress?.currentTime > 0) {  // Only update if we have a saved position
-        const progressSpan = episodeDiv.querySelector('.audio-progress');
-        if (progressSpan) {
-          const currentTimeStr = formatTime(progress.currentTime);
-          const durationStr = formatTime(progress.duration);
-          progressSpan.textContent = `${currentTimeStr}/${durationStr}`;
-        }
-      }
-    });
-    
-    return episodeDiv;
   }
 
   // Modified parseFeeds function to use createEpisodeElement
@@ -883,36 +930,25 @@ function initializeExtensionFeatures() {
           date: item.querySelector('pubDate')?.textContent || ''
         })).filter(item => item.url);
 
-        // Show first 5 episodes
-        const initialEpisodes = podcastItems.slice(0, 5);
-        const remainingEpisodes = podcastItems.slice(5);
-
-        // Add initial episodes
-        initialEpisodes.forEach(item => {
-          const episodeDiv = createEpisodeElement(item, feedUrl);
-          episodesContainer.appendChild(episodeDiv);
-        });
+        // Load initial episodes
+        const { remaining, hasMore } = loadEpisodes(podcastItems, feedUrl, episodesContainer);
 
         // Add load more button if there are remaining episodes
-        if (remainingEpisodes.length > 0) {
+        if (hasMore) {
           const loadMoreBtn = document.createElement('button');
           loadMoreBtn.className = 'load-more-button';
-          loadMoreBtn.textContent = `Load 5 more episodes`;
+          loadMoreBtn.textContent = 'Load 5 more episodes';
+          
           loadMoreBtn.addEventListener('click', () => {
-            // Take next 5 episodes
-            const nextEpisodes = remainingEpisodes.splice(0, 5);
-            
-            // Remove the button temporarily
             loadMoreBtn.remove();
+            const { remaining: newRemaining, hasMore: newHasMore } = loadEpisodes(
+              podcastItems,
+              feedUrl,
+              episodesContainer,
+              podcastItems.length - remaining.length
+            );
             
-            // Add next episodes
-            nextEpisodes.forEach(item => {
-              const episodeDiv = createEpisodeElement(item, feedUrl);
-              episodesContainer.appendChild(episodeDiv);
-            });
-            
-            // Add the button back if there are more episodes
-            if (remainingEpisodes.length > 0) {
+            if (newHasMore) {
               episodesContainer.appendChild(loadMoreBtn);
             }
           });
@@ -1013,51 +1049,42 @@ function initializeExtensionFeatures() {
             // Re-fetch and parse this specific feed
             const result = await tryParseRss(feedUrl);
             if (result.success) {
-              // Clear existing episodes
-              episodesContainer.innerHTML = '';
-              
-              // Process items and create episode elements
+              // Process items
               const refreshedItems = Array.from(result.xmlDoc.querySelectorAll('item')).map(item => ({
                 title: item.querySelector('title')?.textContent || 'Untitled',
                 url: item.querySelector('enclosure')?.getAttribute('url') || '',
                 date: item.querySelector('pubDate')?.textContent || ''
               })).filter(item => item.url);
 
-              // Show first 5 episodes
-              const refreshedInitialEpisodes = refreshedItems.slice(0, 5);
-              const refreshedRemainingEpisodes = refreshedItems.slice(5);
+              // Load episodes using our new function
+              const { remaining, hasMore } = loadEpisodes(refreshedItems, feedUrl, episodesContainer);
 
-              // Add initial episodes
-              refreshedInitialEpisodes.forEach(item => {
-                const episodeDiv = createEpisodeElement(item, feedUrl);
-                episodesContainer.appendChild(episodeDiv);
-              });
-
-              // Add load more button if there are remaining episodes
-              if (refreshedRemainingEpisodes.length > 0) {
-                const loadMoreBtn = document.createElement('button');
-                loadMoreBtn.className = 'load-more-button';
-                loadMoreBtn.textContent = `Load 5 more episodes`;
-                loadMoreBtn.addEventListener('click', () => {
-                  // Take next 5 episodes
-                  const nextEpisodes = refreshedRemainingEpisodes.splice(0, 5);
+              // Update load more button if needed
+              const existingLoadMoreBtn = episodesContainer.querySelector('.load-more-button');
+              if (hasMore) {
+                if (!existingLoadMoreBtn) {
+                  const loadMoreBtn = document.createElement('button');
+                  loadMoreBtn.className = 'load-more-button';
+                  loadMoreBtn.textContent = 'Load 5 more episodes';
                   
-                  // Remove the button temporarily
-                  loadMoreBtn.remove();
-                  
-                  // Add next episodes
-                  nextEpisodes.forEach(item => {
-                    const episodeDiv = createEpisodeElement(item, feedUrl);
-                    episodesContainer.appendChild(episodeDiv);
+                  loadMoreBtn.addEventListener('click', () => {
+                    loadMoreBtn.remove();
+                    const { remaining: newRemaining, hasMore: newHasMore } = loadEpisodes(
+                      refreshedItems,
+                      feedUrl,
+                      episodesContainer,
+                      refreshedItems.length - remaining.length
+                    );
+                    
+                    if (newHasMore) {
+                      episodesContainer.appendChild(loadMoreBtn);
+                    }
                   });
                   
-                  // Add the button back if there are more episodes
-                  if (refreshedRemainingEpisodes.length > 0) {
-                    episodesContainer.appendChild(loadMoreBtn);
-                  }
-                });
-                
-                episodesContainer.appendChild(loadMoreBtn);
+                  episodesContainer.appendChild(loadMoreBtn);
+                }
+              } else if (existingLoadMoreBtn) {
+                existingLoadMoreBtn.remove();
               }
             }
           } catch (error) {
@@ -1079,7 +1106,7 @@ function initializeExtensionFeatures() {
             });
           });
           
-          const updatedFeeds = feeds.filter(f => f.url !== feedUrl);
+          const updatedFeeds = feeds.filter(f => f !== feedUrl);
           await chrome.storage.local.set({ feeds: updatedFeeds });
           
           // Remove feed container from UI with animation
@@ -1091,7 +1118,7 @@ function initializeExtensionFeatures() {
         });
 
       } catch (err) {
-        console.error('Error processing feed:', feedUrl, err);
+        console.error('Error processing feed:', feed, err);
         continue;
       }
     }
@@ -1616,3 +1643,87 @@ player.addEventListener('ended', () => {
     currentlyPlayingUrl = null;
   }
 });
+
+/**
+ * Loads episodes into a container with pagination
+ * @param {Array} items - Array of episode items
+ * @param {string} feedUrl - URL of the feed
+ * @param {HTMLElement} episodesContainer - Container to add episodes to
+ * @param {number} startIndex - Starting index for episodes
+ * @param {number} batchSize - Number of episodes to load at once
+ * @returns {Object} - Object containing remaining episodes and whether there are more
+ */
+function loadEpisodes(items, feedUrl, episodesContainer, startIndex = 0, batchSize = 5) {
+  // Clear container if starting from beginning
+  if (startIndex === 0) {
+    episodesContainer.innerHTML = '';
+  }
+
+  // Get batch of episodes
+  const batch = items.slice(startIndex, startIndex + batchSize);
+  const remaining = items.slice(startIndex + batchSize);
+
+  // Add episodes to container
+  batch.forEach(item => {
+    const episodeDiv = createEpisodeElement(item, feedUrl);
+    episodesContainer.appendChild(episodeDiv);
+  });
+
+  // Return remaining episodes and whether there are more
+  return {
+    remaining,
+    hasMore: remaining.length > 0
+  };
+}
+
+// Function to play audio
+function playAudio(url, title) {
+  const player = document.getElementById('player');
+  const nowPlaying = document.getElementById('nowPlaying');
+  const playBtn = document.querySelector(`.audio-control[data-url="${url}"]`);
+  
+  // If this is the same episode and it's already playing, pause it
+  if (player.src === url && !player.paused) {
+    player.pause();
+    if (playBtn) {
+      playBtn.textContent = '⏵';
+    }
+    return;
+  }
+  
+  // Stop current playback
+  player.pause();
+  
+  // Reset all play buttons
+  document.querySelectorAll('.audio-control:not(.mark-played)').forEach(btn => {
+    btn.textContent = '⏵';
+  });
+  
+  // Check for saved position
+  chrome.storage.local.get('episodeProgress', (data) => {
+    const progress = data.episodeProgress?.[url];
+    
+    // Set new source and play
+    player.src = url;
+    
+    // If we have a saved position, restore it
+    if (progress?.currentTime > 0) {
+      player.currentTime = progress.currentTime;
+    }
+    
+    player.play().catch(err => {
+      console.error('Playback failed:', err);
+      if (playBtn) {
+        playBtn.textContent = '⏵';
+      }
+    });
+  });
+  
+  // Update now playing text
+  nowPlaying.textContent = title;
+  
+  // Update play button
+  if (playBtn) {
+    playBtn.textContent = '⏸';
+  }
+}
