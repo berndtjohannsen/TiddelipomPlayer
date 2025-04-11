@@ -397,7 +397,7 @@ audio::-webkit-media-controls-toggle-closed-captions-button {
 .podcast-icons {
   display: flex;
   gap: 8px;
-  margin-right: 4px;
+  margin-left: auto;  /* Keep this for right alignment */
 }
 
 .podcast-icon {

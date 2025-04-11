@@ -295,8 +295,9 @@ function initializeStandaloneFeatures() {
       // Refresh icon
       const refreshIcon = document.createElement('span');
       refreshIcon.className = 'podcast-icon';
-      refreshIcon.textContent = '↻';
+      refreshIcon.textContent = '⟳';
       refreshIcon.title = 'Refresh feed';
+      
       refreshIcon.addEventListener('click', async (e) => {
         e.stopPropagation();  // Prevent toggle action
         
@@ -311,195 +312,54 @@ function initializeStandaloneFeatures() {
             // Clear existing episodes
             episodesContainer.innerHTML = '';
             
-            // Re-add the header row
-            const header = document.createElement('div');
-            header.className = 'episode-header';
-            header.innerHTML = `
-              <div class="header-play"></div>
-              <div class="header-title">Episode</div>
-              <div class="header-complete">Complete</div>
-            `;
-            episodesContainer.appendChild(header);
-            
-            // Get episodes limit
-            const limit = await new Promise(resolve => {
-              chrome.storage.local.get('audioLimit', (data) => {
-                resolve(parseInt(data.audioLimit) || 3);
-              });
+            // Process items and create episode elements
+            const podcastItems = Array.from(result.xmlDoc.querySelectorAll('item')).map(item => ({
+              title: item.querySelector('title')?.textContent || 'Untitled',
+              url: item.querySelector('enclosure')?.getAttribute('url') || '',
+              date: item.querySelector('pubDate')?.textContent || ''
+            })).filter(item => item.url);
+
+            // Show first 5 episodes
+            const initialEpisodes = podcastItems.slice(0, 5);
+            const remainingEpisodes = podcastItems.slice(5);
+
+            // Add initial episodes
+            initialEpisodes.forEach(item => {
+              const episodeDiv = createEpisodeElement(item, feedUrl);
+              episodesContainer.appendChild(episodeDiv);
             });
-            
-            // Get played episodes
-            const playedData = await chrome.storage.local.get('playedEpisodes');
-            const playedEpisodes = playedData.playedEpisodes || {};
-            const playedForFeed = playedEpisodes[feedUrl] || [];
-            
-            // Process episodes
-            const items = Array.from(result.xmlDoc.querySelectorAll('item'));
-            const audioItems = items.filter(item => 
-              item.querySelector('enclosure')?.getAttribute('type') === 'audio/mpeg'
-            );
-            
-            // Update episode count and date in the header
-            const episodeCount = audioItems.length;
-            let feedLatestDate = null;
-            audioItems.forEach(item => {
-              const pubDate = item.querySelector('pubDate')?.textContent;
-              if (pubDate) {
-                const date = new Date(pubDate);
-                if (!feedLatestDate || date > feedLatestDate) {
-                  feedLatestDate = date;
-                }
-              }
-            });
-            
-            // Update the info text
-            const dateStr = feedLatestDate ? feedLatestDate.toLocaleDateString('en-US', { 
-              month: 'short', 
-              day: 'numeric', 
-              year: 'numeric' 
-            }) : '';
-            infoText.textContent = `${episodeCount} episodes • ${dateStr}`;
-            
-            // Show episodes
-            const playedInLimit = audioItems.slice(0, limit).filter(item => {
-              const audioUrl = item.querySelector('enclosure')?.getAttribute('url');
-              return audioUrl && playedForFeed.includes(audioUrl);
-            }).length;
-            
-            const itemsToShow = audioItems.slice(0, limit + playedInLimit);
-            
-            for (const item of itemsToShow) {
-              const title = item.querySelector('title')?.textContent || 'Untitled';
-              const audioUrl = item.querySelector('enclosure')?.getAttribute('url');
-              const pubDate = item.querySelector('pubDate')?.textContent;
-              
-              if (!audioUrl) continue;
-              
-              const div = document.createElement('div');
-              div.className = 'audio-item';
-              
-              const contentDiv = document.createElement('div');
-              contentDiv.className = 'audio-content';
-              
-              const titleSpan = document.createElement('div');
-              titleSpan.className = 'audio-title';
-              titleSpan.textContent = title;
-              contentDiv.appendChild(titleSpan);
-              
-              if (pubDate) {
-                const infoDiv = document.createElement('div');
-                infoDiv.className = 'audio-info';
+
+            // Add load more button if there are remaining episodes
+            if (remainingEpisodes.length > 0) {
+              const loadMoreBtn = document.createElement('button');
+              loadMoreBtn.className = 'load-more-button';
+              loadMoreBtn.textContent = `Load 5 more episodes`;
+              loadMoreBtn.addEventListener('click', () => {
+                // Take next 5 episodes
+                const nextEpisodes = remainingEpisodes.splice(0, 5);
                 
-                const progressSpan = document.createElement('span');
-                progressSpan.className = 'audio-progress';
-                progressSpan.textContent = '0:00/--:--';  // Default before duration is known
+                // Remove the button temporarily
+                loadMoreBtn.remove();
                 
-                const dateSpan = document.createElement('span');
-                dateSpan.className = 'audio-date';
-                const date = new Date(pubDate);
-                dateSpan.textContent = ' • Publication date: ' + date.toLocaleDateString('en-US', {
-                  year: 'numeric',
-                  month: 'long',
-                  day: 'numeric'
+                // Add next episodes
+                nextEpisodes.forEach(item => {
+                  const episodeDiv = createEpisodeElement(item, feedUrl);
+                  episodesContainer.appendChild(episodeDiv);
                 });
                 
-                infoDiv.appendChild(progressSpan);
-                infoDiv.appendChild(dateSpan);
-                contentDiv.appendChild(infoDiv);
-              }
+                // Add the button back if there are more episodes
+                if (remainingEpisodes.length > 0) {
+                  episodesContainer.appendChild(loadMoreBtn);
+                }
+              });
               
-              // Format time helper function
-              const formatTime = (seconds) => {
-                const hrs = Math.floor(seconds / 3600);
-                const mins = Math.floor((seconds % 3600) / 60);
-                const secs = Math.floor(seconds % 60);
-                if (hrs > 0) {
-                  return `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-                }
-                return `${mins}:${secs.toString().padStart(2, '0')}`;
-              };
-
-              // Create audio element for duration and progress tracking
-              const audio = new Audio();
-              audio.preload = 'metadata';  // Only load metadata to get duration
-              audio.src = audioUrl;
-
-              // Load duration when metadata is loaded
-              audio.addEventListener('loadedmetadata', () => {
-                const totalTime = formatTime(audio.duration);
-                const currentTime = formatTime(audio.currentTime);
-                const progressSpan = div.querySelector('.audio-progress');
-                if (progressSpan) {
-                  progressSpan.textContent = `${currentTime}/${totalTime}`;
-                }
-              });
-
-              // Update time display during playback
-              audio.addEventListener('timeupdate', () => {
-                const totalTime = formatTime(audio.duration);
-                const currentTime = formatTime(audio.currentTime);
-                const progressSpan = div.querySelector('.audio-progress');
-                if (progressSpan) {
-                  progressSpan.textContent = `${currentTime}/${totalTime}`;
-                }
-              });
-
-              // Store progress when playback stops
-              audio.addEventListener('pause', async () => {
-                const progress = {
-                  currentTime: audio.currentTime,
-                  duration: audio.duration,
-                  lastPlayed: new Date().toISOString()
-                };
-                
-                // Get existing progress data
-                const progressData = await chrome.storage.local.get('episodeProgress') || {};
-                const allProgress = progressData.episodeProgress || {};
-                
-                // Update progress for this episode
-                allProgress[audioUrl] = progress;
-                
-                // Save back to storage
-                await chrome.storage.local.set({ episodeProgress: allProgress });
-              });
-
-              // Load saved progress when creating episode
-              chrome.storage.local.get('episodeProgress').then(data => {
-                const progress = data.episodeProgress?.[audioUrl];
-                if (progress) {
-                  const currentTime = formatTime(progress.currentTime);
-                  const totalTime = formatTime(progress.duration);
-                  const progressSpan = div.querySelector('.audio-progress');
-                  if (progressSpan) {
-                    progressSpan.textContent = `${currentTime}/${totalTime}`;
-                  }
-                }
-              });
-
-              // Check if episode is marked as played
-              const isPlayed = playedForFeed.includes(audioUrl);
-              if (isPlayed) {
-                div.classList.add('played');
-              }
-
-              // Add play button
-              const playButton = createPlayButton(audioUrl, title);
-              div.appendChild(playButton);
-
-              // Add content div with title and info
-              div.appendChild(contentDiv);
-
-              // Add mark as played/unplayed button
-              const markPlayedButton = createMarkPlayedButton(audioUrl, title, feedUrl, isPlayed);
-              div.appendChild(markPlayedButton);
-
-              episodesContainer.appendChild(div);
+              episodesContainer.appendChild(loadMoreBtn);
             }
           }
         } catch (error) {
           console.error('Error refreshing feed:', error);
         } finally {
-          // Reset loading state
+          // Reset icon state
           refreshIcon.style.opacity = '1';
           refreshIcon.style.cursor = 'pointer';
         }
@@ -513,23 +373,19 @@ function initializeStandaloneFeatures() {
       removeIcon.addEventListener('click', async (e) => {
         e.stopPropagation();  // Prevent toggle action
         
-        // Get current feeds
-        const data = await new Promise(resolve => {
-          chrome.storage.local.get('feeds', (data) => resolve(data));
-        });
-        
         // Remove this feed
-        const feeds = data.feeds || [];
-        const updatedFeeds = feeds.filter(f => f !== feedUrl);
-        
-        // Update storage
-        await new Promise(resolve => {
-          chrome.storage.local.set({ feeds: updatedFeeds }, resolve);
+        const feeds = await new Promise(resolve => {
+          chrome.storage.local.get('feeds', (data) => {
+            resolve(data.feeds || []);
+          });
         });
+        
+        const updatedFeeds = feeds.filter(f => f.url !== feedUrl);
+        await chrome.storage.local.set({ feeds: updatedFeeds });
         
         // Remove feed container from UI with animation
-        feedContainer.style.transition = 'opacity 0.3s ease';
         feedContainer.style.opacity = '0';
+        feedContainer.style.transform = 'translateX(-20px)';
         setTimeout(() => {
           feedContainer.remove();
         }, 300);
@@ -938,12 +794,13 @@ function initializeExtensionFeatures() {
     podContent.innerHTML = '';
 
     // Process each feed
-    for (const feedUrl of feeds) {
+    for (const feed of feeds) {
       try {
-        const result = await tryParseRss(feedUrl);
+        const result = await tryParseRss(feed);
         if (!result) continue;
 
         const { xmlDoc, feedTitle } = result;
+        const feedUrl = feed;  // Store the feed URL
         
         // Create feed container
         const feedContainer = document.createElement('div');
@@ -1020,15 +877,15 @@ function initializeExtensionFeatures() {
         });
 
         // Process items and create episode elements
-        const items = allItems.map(item => ({
+        const podcastItems = Array.from(xmlDoc.querySelectorAll('item')).map(item => ({
           title: item.querySelector('title')?.textContent || 'Untitled',
           url: item.querySelector('enclosure')?.getAttribute('url') || '',
           date: item.querySelector('pubDate')?.textContent || ''
         })).filter(item => item.url);
 
         // Show first 5 episodes
-        const initialEpisodes = items.slice(0, 5);
-        const remainingEpisodes = items.slice(5);
+        const initialEpisodes = podcastItems.slice(0, 5);
+        const remainingEpisodes = podcastItems.slice(5);
 
         // Add initial episodes
         initialEpisodes.forEach(item => {
@@ -1060,7 +917,6 @@ function initializeExtensionFeatures() {
             }
           });
           
-          // Add initial load more button
           episodesContainer.appendChild(loadMoreBtn);
         }
 
@@ -1071,18 +927,167 @@ function initializeExtensionFeatures() {
 
         // Add event listeners for icons
         infoIcon.addEventListener('click', (e) => {
-          e.stopPropagation();
-          // ... rest of info icon click handler ...
+          e.stopPropagation();  // Prevent toggle action
+          
+          // Get feed information from the XML
+          const channelInfo = xmlDoc.querySelector('channel');
+          const description = channelInfo.querySelector('description')?.textContent || '';
+          const link = channelInfo.querySelector('link')?.textContent || '';
+          const language = channelInfo.querySelector('language')?.textContent || '';
+          const copyright = channelInfo.querySelector('copyright')?.textContent || '';
+          const lastBuildDate = channelInfo.querySelector('lastBuildDate')?.textContent || '';
+          
+          // Remove any existing popup
+          const existingPopup = document.querySelector('.feed-info-popup');
+          if (existingPopup) {
+            existingPopup.remove();
+          }
+
+          // Create popup content
+          const infoContent = document.createElement('div');
+          infoContent.className = 'feed-info-popup';
+          
+          // Add feed information (truncate description if too long)
+          const truncatedDesc = description.length > 200 ? description.substring(0, 200) + '...' : description;
+          
+          infoContent.innerHTML = `
+            <div class="feed-info-content">
+              <h3>${feedTitle}</h3>
+              <p>${truncatedDesc}</p>
+              ${link ? `<p><strong>Website:</strong> <a href="${link}" target="_blank">${link}</a></p>` : ''}
+              ${copyright ? `<p><strong>Copyright:</strong> ${copyright}</p>` : ''}
+              ${lastBuildDate ? `<p><strong>Last updated:</strong> ${new Date(lastBuildDate).toLocaleDateString('en-US', {
+                month: 'long',
+                day: 'numeric',
+                year: 'numeric'
+              })}</p>` : ''}
+            </div>
+          `;
+          
+          // Add close button
+          const closeButton = document.createElement('button');
+          closeButton.className = 'feed-info-close';
+          closeButton.textContent = '×';
+          closeButton.addEventListener('click', (e) => {
+            e.stopPropagation();
+            infoContent.remove();
+          });
+          infoContent.insertBefore(closeButton, infoContent.firstChild);
+          
+          // Calculate position
+          const iconRect = infoIcon.getBoundingClientRect();
+          const scrollTop = window.scrollY || document.documentElement.scrollTop;
+          
+          // Position the popup below the icon
+          infoContent.style.top = `${iconRect.bottom + 5}px`;  // 5px gap
+          infoContent.style.left = '10px';  // Match margin from CSS
+          
+          // Add to body instead of feed container for fixed positioning
+          document.body.appendChild(infoContent);
+          
+          // Adjust position if popup would go off screen
+          const popupRect = infoContent.getBoundingClientRect();
+          const viewportHeight = window.innerHeight;
+          if (popupRect.bottom > viewportHeight) {
+            // Position above the icon if it would go off screen below
+            infoContent.style.top = `${iconRect.top - popupRect.height - 5}px`;
+          }
+          
+          // Close popup when clicking outside
+          document.addEventListener('click', function closePopup(e) {
+            if (!infoContent.contains(e.target) && e.target !== infoIcon) {
+              infoContent.remove();
+              document.removeEventListener('click', closePopup);
+            }
+          });
         });
 
-        refreshIcon.addEventListener('click', (e) => {
-          e.stopPropagation();
-          // ... rest of refresh icon click handler ...
+        refreshIcon.addEventListener('click', async (e) => {
+          e.stopPropagation();  // Prevent toggle action
+          
+          // Show loading state
+          refreshIcon.style.opacity = '0.5';
+          refreshIcon.style.cursor = 'wait';
+          
+          try {
+            // Re-fetch and parse this specific feed
+            const result = await tryParseRss(feedUrl);
+            if (result.success) {
+              // Clear existing episodes
+              episodesContainer.innerHTML = '';
+              
+              // Process items and create episode elements
+              const refreshedItems = Array.from(result.xmlDoc.querySelectorAll('item')).map(item => ({
+                title: item.querySelector('title')?.textContent || 'Untitled',
+                url: item.querySelector('enclosure')?.getAttribute('url') || '',
+                date: item.querySelector('pubDate')?.textContent || ''
+              })).filter(item => item.url);
+
+              // Show first 5 episodes
+              const refreshedInitialEpisodes = refreshedItems.slice(0, 5);
+              const refreshedRemainingEpisodes = refreshedItems.slice(5);
+
+              // Add initial episodes
+              refreshedInitialEpisodes.forEach(item => {
+                const episodeDiv = createEpisodeElement(item, feedUrl);
+                episodesContainer.appendChild(episodeDiv);
+              });
+
+              // Add load more button if there are remaining episodes
+              if (refreshedRemainingEpisodes.length > 0) {
+                const loadMoreBtn = document.createElement('button');
+                loadMoreBtn.className = 'load-more-button';
+                loadMoreBtn.textContent = `Load 5 more episodes`;
+                loadMoreBtn.addEventListener('click', () => {
+                  // Take next 5 episodes
+                  const nextEpisodes = refreshedRemainingEpisodes.splice(0, 5);
+                  
+                  // Remove the button temporarily
+                  loadMoreBtn.remove();
+                  
+                  // Add next episodes
+                  nextEpisodes.forEach(item => {
+                    const episodeDiv = createEpisodeElement(item, feedUrl);
+                    episodesContainer.appendChild(episodeDiv);
+                  });
+                  
+                  // Add the button back if there are more episodes
+                  if (refreshedRemainingEpisodes.length > 0) {
+                    episodesContainer.appendChild(loadMoreBtn);
+                  }
+                });
+                
+                episodesContainer.appendChild(loadMoreBtn);
+              }
+            }
+          } catch (error) {
+            console.error('Error refreshing feed:', error);
+          } finally {
+            // Reset icon state
+            refreshIcon.style.opacity = '1';
+            refreshIcon.style.cursor = 'pointer';
+          }
         });
 
-        removeIcon.addEventListener('click', (e) => {
-          e.stopPropagation();
-          // ... rest of remove icon click handler ...
+        removeIcon.addEventListener('click', async (e) => {
+          e.stopPropagation();  // Prevent toggle action
+          
+          // Remove this feed
+          const feeds = await new Promise(resolve => {
+            chrome.storage.local.get('feeds', (data) => {
+              resolve(data.feeds || []);
+            });
+          });
+          
+          const updatedFeeds = feeds.filter(f => f.url !== feedUrl);
+          await chrome.storage.local.set({ feeds: updatedFeeds });
+          
+          // Remove feed container from UI with animation
+          feedContainer.style.opacity = '0';
+          feedContainer.style.transform = 'translateX(-20px)';
+          setTimeout(() => {
+            feedContainer.remove();
+          }, 300);
         });
 
       } catch (err) {
