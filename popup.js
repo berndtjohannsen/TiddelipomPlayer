@@ -1272,7 +1272,24 @@ function handlePlaybackError(err, contentDiv, playBtn) {
   
   let errorMessage = 'Could not play this audio stream';
   
-  if (err instanceof DOMException) {
+  if (err instanceof MediaError) {
+    switch (err.code) {
+      case MediaError.MEDIA_ERR_ABORTED:
+        errorMessage = 'Playback was interrupted';
+        break;
+      case MediaError.MEDIA_ERR_NETWORK:
+        errorMessage = 'Network error - please check your connection';
+        break;
+      case MediaError.MEDIA_ERR_DECODE:
+        errorMessage = 'Could not decode the audio file';
+        break;
+      case MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED:
+        errorMessage = 'This audio format is not supported';
+        break;
+      default:
+        errorMessage = 'Could not play this audio stream';
+    }
+  } else if (err instanceof DOMException) {
     switch (err.name) {
       case 'AbortError':
         errorMessage = 'Playback was interrupted';
