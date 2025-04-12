@@ -3,6 +3,10 @@ let currentlyPlayingUrl = null;
 let playerEventsAdded = false;
 let isSeekingManually = false;
 let isRadioStream = false;
+let savePositionInterval = null;
+
+// Import the audio player manager
+import audioPlayer from './audio-player.js';
 
 // Format time helper function
 function formatTime(seconds) {
@@ -27,7 +31,10 @@ function createEpisodeElement(item, feedUrl) {
   playBtn.className = 'audio-control';
   playBtn.textContent = '⏵';
   playBtn.dataset.url = item.url;
-  playBtn.addEventListener('click', () => playAudio(item.url, item.title));
+  playBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    audioPlayer.playAudio(item.url, item.title);
+  });
   
   const contentDiv = document.createElement('div');
   contentDiv.className = 'audio-content';
