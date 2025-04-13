@@ -512,46 +512,182 @@ function initializeStandaloneFeatures() {
       const episodesContainer = document.createElement('div');
       episodesContainer.className = 'feed-episodes';
 
+      // Process items and create episode elements
+      const podcastItems = Array.from(xmlDoc.querySelectorAll('item')).map(item => ({
+        title: item.querySelector('title')?.textContent || 'Untitled',
+        url: item.querySelector('enclosure')?.getAttribute('url') || '',
+        date: item.querySelector('pubDate')?.textContent || '',
+        duration: item.querySelector('itunes\\:duration')?.textContent || 
+                 item.querySelector('duration')?.textContent || '',
+        length: item.querySelector('enclosure')?.getAttribute('length') || ''
+      })).filter(item => item.url);
+
       // Load initial episodes
-      const { remaining, hasMore } = loadEpisodes(podcastItems, feedUrl, episodesContainer);
+      loadEpisodes(podcastItems, feedUrl, episodesContainer);
 
-      // Add load more button if there are remaining episodes
-      if (hasMore) {
-        const loadMoreBtn = document.createElement('button');
-        loadMoreBtn.className = 'load-more-button';
-        loadMoreBtn.textContent = 'Load 5 more episodes';
-        
-        loadMoreBtn.addEventListener('click', () => {
-          loadMoreBtn.remove();
-          const { remaining: newRemaining, hasMore: newHasMore } = loadEpisodes(
-            podcastItems,
-            feedUrl,
-            episodesContainer,
-            podcastItems.length - remaining.length
-          );
-          
-          if (newHasMore) {
-            episodesContainer.appendChild(loadMoreBtn);
-          }
-        });
-        
-        episodesContainer.appendChild(loadMoreBtn);
-      }
-
-      // Add containers to feed
-      separator.appendChild(toggleIcon);
-      separator.appendChild(titleContainer);
-      separator.appendChild(iconsContainer);
+      // Add feed container to podcasts container
       feedContainer.appendChild(separator);
       feedContainer.appendChild(episodesContainer);
       podContent.appendChild(feedContainer);
 
-      // Add click handler for expand/collapse
-      separator.addEventListener('click', () => {
-        separator.classList.toggle('collapsed');
-        episodesContainer.classList.toggle('collapsed');
-        toggleIcon.textContent = separator.classList.contains('collapsed') ? '▶' : '▼';
+      // Add event listeners for icons
+      infoIcon.addEventListener('click', (e) => {
+        e.stopPropagation();  // Prevent toggle action
+        
+        // Get feed information from the XML
+        const channelInfo = xmlDoc.querySelector('channel');
+        const description = channelInfo.querySelector('description')?.textContent || '';
+        const link = channelInfo.querySelector('link')?.textContent || '';
+        const language = channelInfo.querySelector('language')?.textContent || '';
+        const copyright = channelInfo.querySelector('copyright')?.textContent || '';
+        const lastBuildDate = channelInfo.querySelector('lastBuildDate')?.textContent || '';
+        
+        // Remove any existing popup
+        const existingPopup = document.querySelector('.feed-info-popup');
+        if (existingPopup) {
+          existingPopup.remove();
+        }
+
+        // Create popup content
+        const infoContent = document.createElement('div');
+        infoContent.className = 'feed-info-popup';
+        
+        // Add feed information (truncate description if too long)
+        const truncatedDesc = description.length > 200 ? description.substring(0, 200) + '...' : description;
+        
+        infoContent.innerHTML = `
+          <div class="feed-info-content">
+            <h3>${feedTitle}</h3>
+            <p>${truncatedDesc}</p>
+            ${link ? `<p><strong>Website:</strong> <a href="${link}" target="_blank">${link}</a></p>` : ''}
+            ${copyright ? `<p><strong>Copyright:</strong> ${copyright}</p>` : ''}
+            ${lastBuildDate ? `<p><strong>Last updated:</strong> ${new Date(lastBuildDate).toLocaleDateString('en-US', {
+              month: 'long',
+              day: 'numeric',
+              year: 'numeric'
+            })}</p>` : ''}
+          </div>
+        `;
+        
+        // Add close button
+        const closeButton = document.createElement('button');
+        closeButton.className = 'feed-info-close';
+        closeButton.textContent = '×';
+        closeButton.addEventListener('click', (e) => {
+          e.stopPropagation();
+          infoContent.remove();
+        });
+        infoContent.insertBefore(closeButton, infoContent.firstChild);
+        
+        // Calculate position
+        const iconRect = infoIcon.getBoundingClientRect();
+        const scrollTop = window.scrollY || document.documentElement.scrollTop;
+        
+        // Position the popup below the icon
+        infoContent.style.top = `${iconRect.bottom + 5}px`;  // 5px gap
+        infoContent.style.left = '10px';  // Match margin from CSS
+        
+        // Add to body instead of feed container for fixed positioning
+        document.body.appendChild(infoContent);
+        
+        // Adjust position if popup would go off screen
+        const popupRect = infoContent.getBoundingClientRect();
+        const viewportHeight = window.innerHeight;
+        if (popupRect.bottom > viewportHeight) {
+          // Position above the icon if it would go off screen below
+          infoContent.style.top = `${iconRect.top - popupRect.height - 5}px`;
+        }
+        
+        // Close popup when clicking outside
+        document.addEventListener('click', function closePopup(e) {
+          if (!infoContent.contains(e.target) && e.target !== infoIcon) {
+            infoContent.remove();
+            document.removeEventListener('click', closePopup);
+          }
+        });
       });
+
+      refreshIcon.addEventListener('click', async (e) => {
+        e.stopPropagation();  // Prevent toggle action
+        
+        // Show loading state
+        refreshIcon.style.opacity = '0.5';
+        refreshIcon.style.cursor = 'wait';
+        
+        try {
+          // Re-fetch and parse this specific feed
+          const result = await tryParseRss(feedUrl);
+          if (result.success) {
+            // Process items
+            const refreshedItems = Array.from(result.xmlDoc.querySelectorAll('item')).map(item => ({
+              title: item.querySelector('title')?.textContent || 'Untitled',
+              url: item.querySelector('enclosure')?.getAttribute('url') || '',
+              date: item.querySelector('pubDate')?.textContent || '',
+              duration: item.querySelector('itunes\\:duration')?.textContent || 
+                       item.querySelector('duration')?.textContent || ''  // Try both iTunes and standard duration tags
+            })).filter(item => item.url);
+
+            // Load episodes using our new function
+            const { remaining, hasMore } = loadEpisodes(refreshedItems, feedUrl, episodesContainer);
+
+            // Update load more button if needed
+            const existingLoadMoreBtn = episodesContainer.querySelector('.load-more-button');
+            if (hasMore) {
+              if (!existingLoadMoreBtn) {
+                const loadMoreBtn = document.createElement('button');
+                loadMoreBtn.className = 'load-more-button';
+                loadMoreBtn.textContent = 'Load 5 more episodes';
+                
+                loadMoreBtn.addEventListener('click', () => {
+                  loadMoreBtn.remove();
+                  const { remaining: newRemaining, hasMore: newHasMore } = loadEpisodes(
+                    refreshedItems,
+                    feedUrl,
+                    episodesContainer,
+                    refreshedItems.length - remaining.length
+                  );
+                  
+                  if (newHasMore) {
+                    episodesContainer.appendChild(loadMoreBtn);
+                  }
+                });
+                
+                episodesContainer.appendChild(loadMoreBtn);
+              }
+            } else if (existingLoadMoreBtn) {
+              existingLoadMoreBtn.remove();
+            }
+          }
+        } catch (error) {
+          console.error('Error refreshing feed:', error);
+        } finally {
+          // Reset icon state
+          refreshIcon.style.opacity = '1';
+          refreshIcon.style.cursor = 'pointer';
+        }
+      });
+
+      removeIcon.addEventListener('click', async (e) => {
+        e.stopPropagation();  // Prevent toggle action
+        
+        // Remove this feed
+        const feeds = await new Promise(resolve => {
+          chrome.storage.local.get('feeds', (data) => {
+            resolve(data.feeds || []);
+          });
+        });
+        
+        const updatedFeeds = feeds.filter(f => f !== feedUrl);
+        await chrome.storage.local.set({ feeds: updatedFeeds });
+        
+        // Remove feed container from UI with animation
+        feedContainer.style.opacity = '0';
+        feedContainer.style.transform = 'translateX(-20px)';
+        setTimeout(() => {
+          feedContainer.remove();
+        }, 300);
+      });
+
     });
   }
 
@@ -966,35 +1102,12 @@ function initializeExtensionFeatures() {
           url: item.querySelector('enclosure')?.getAttribute('url') || '',
           date: item.querySelector('pubDate')?.textContent || '',
           duration: item.querySelector('itunes\\:duration')?.textContent || 
-                   item.querySelector('duration')?.textContent || '',  // Try both iTunes and standard duration tags
-          length: item.querySelector('enclosure')?.getAttribute('length') || ''  // Get file size in bytes
+                   item.querySelector('duration')?.textContent || '',
+          length: item.querySelector('enclosure')?.getAttribute('length') || ''
         })).filter(item => item.url);
 
         // Load initial episodes
-        const { remaining, hasMore } = loadEpisodes(podcastItems, feedUrl, episodesContainer);
-
-        // Add load more button if there are remaining episodes
-        if (hasMore) {
-          const loadMoreBtn = document.createElement('button');
-          loadMoreBtn.className = 'load-more-button';
-          loadMoreBtn.textContent = 'Load 5 more episodes';
-          
-          loadMoreBtn.addEventListener('click', () => {
-            loadMoreBtn.remove();
-            const { remaining: newRemaining, hasMore: newHasMore } = loadEpisodes(
-              podcastItems,
-              feedUrl,
-              episodesContainer,
-              podcastItems.length - remaining.length
-            );
-            
-            if (newHasMore) {
-              episodesContainer.appendChild(loadMoreBtn);
-            }
-          });
-          
-          episodesContainer.appendChild(loadMoreBtn);
-        }
+        loadEpisodes(podcastItems, feedUrl, episodesContainer);
 
         // Add feed container to podcasts container
         feedContainer.appendChild(separator);
@@ -1713,12 +1826,70 @@ player.addEventListener('ended', () => {
  * @returns {Object} - Object containing remaining episodes and whether there are more
  */
 function loadEpisodes(items, feedUrl, episodesContainer, startIndex = 0, batchSize = 5) {
-  // Clear container if starting from beginning
-  if (startIndex === 0) {
-    episodesContainer.innerHTML = '';
+  // Clear any existing buttons first
+  const existingButtons = episodesContainer.querySelector('.episode-buttons');
+  if (existingButtons) {
+    existingButtons.remove();
   }
 
-  // Get batch of episodes
+  // If this is the initial state (no episodes loaded)
+  if (startIndex === 0 && episodesContainer.children.length === 0) {
+    const initialLoadBtn = document.createElement('button');
+    initialLoadBtn.className = 'load-more-button';
+    initialLoadBtn.textContent = 'Load 5 more episodes';
+    
+    initialLoadBtn.addEventListener('click', () => {
+      // Clear the container and load first batch
+      episodesContainer.innerHTML = '';
+      
+      // Get first batch of episodes
+      const batch = items.slice(0, batchSize);
+      const remaining = items.slice(batchSize);
+
+      // Add episodes to container
+      batch.forEach(item => {
+        const episodeDiv = createEpisodeElement(item, feedUrl);
+        episodesContainer.appendChild(episodeDiv);
+      });
+
+      // Create button container
+      const buttonContainer = document.createElement('div');
+      buttonContainer.className = 'episode-buttons';
+
+      // Add load more button if there are remaining episodes
+      if (remaining.length > 0) {
+        const loadMoreBtn = document.createElement('button');
+        loadMoreBtn.className = 'load-more-button';
+        loadMoreBtn.textContent = 'Load 5 more episodes';
+        
+        loadMoreBtn.addEventListener('click', () => {
+          loadMoreBtn.remove();
+          loadEpisodes(items, feedUrl, episodesContainer, batchSize, batchSize);
+        });
+        
+        buttonContainer.appendChild(loadMoreBtn);
+      }
+
+      // Add unload button
+      const unloadBtn = document.createElement('button');
+      unloadBtn.className = 'unload-button';
+      unloadBtn.textContent = 'Unload episodes';
+      
+      unloadBtn.addEventListener('click', () => {
+        episodesContainer.innerHTML = '';
+        // Reset to initial state
+        loadEpisodes(items, feedUrl, episodesContainer, 0, batchSize);
+      });
+
+      buttonContainer.appendChild(unloadBtn);
+      episodesContainer.appendChild(buttonContainer);
+    });
+    
+    episodesContainer.appendChild(initialLoadBtn);
+    return;
+  }
+
+  // For subsequent loads (after initial)
   const batch = items.slice(startIndex, startIndex + batchSize);
   const remaining = items.slice(startIndex + batchSize);
 
@@ -1728,11 +1899,37 @@ function loadEpisodes(items, feedUrl, episodesContainer, startIndex = 0, batchSi
     episodesContainer.appendChild(episodeDiv);
   });
 
-  // Return remaining episodes and whether there are more
-  return {
-    remaining,
-    hasMore: remaining.length > 0
-  };
+  // Create button container
+  const buttonContainer = document.createElement('div');
+  buttonContainer.className = 'episode-buttons';
+
+  // Add load more button if there are remaining episodes
+  if (remaining.length > 0) {
+    const loadMoreBtn = document.createElement('button');
+    loadMoreBtn.className = 'load-more-button';
+    loadMoreBtn.textContent = 'Load 5 more episodes';
+    
+    loadMoreBtn.addEventListener('click', () => {
+      loadMoreBtn.remove();
+      loadEpisodes(items, feedUrl, episodesContainer, startIndex + batchSize, batchSize);
+    });
+    
+    buttonContainer.appendChild(loadMoreBtn);
+  }
+
+  // Add unload button
+  const unloadBtn = document.createElement('button');
+  unloadBtn.className = 'unload-button';
+  unloadBtn.textContent = 'Unload episodes';
+  
+  unloadBtn.addEventListener('click', () => {
+    episodesContainer.innerHTML = '';
+    // Reset to initial state
+    loadEpisodes(items, feedUrl, episodesContainer, 0, batchSize);
+  });
+
+  buttonContainer.appendChild(unloadBtn);
+  episodesContainer.appendChild(buttonContainer);
 }
 
 // Function to play audio
