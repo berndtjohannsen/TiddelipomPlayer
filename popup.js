@@ -44,13 +44,58 @@ function createEpisodeElement(item, feedUrl) {
   titleSpan.textContent = item.title;
   contentDiv.appendChild(titleSpan);
   
-  if (item.date) {
+  if (item.date || item.duration) {
     const infoDiv = document.createElement('div');
     infoDiv.className = 'audio-info';
     
     const progressSpan = document.createElement('span');
     progressSpan.className = 'audio-progress';
-    progressSpan.textContent = '0:00/--:--';
+    
+    // Try to parse duration from RSS feed first
+    let durationInSeconds = 0;
+    if (item.duration) {
+      // Handle different duration formats (HH:MM:SS, MM:SS, or seconds)
+      const parts = item.duration.split(':');
+      if (parts.length === 3) {
+        // HH:MM:SS format
+        durationInSeconds = parseInt(parts[0]) * 3600 + parseInt(parts[1]) * 60 + parseInt(parts[2]);
+      } else if (parts.length === 2) {
+        // MM:SS format
+        durationInSeconds = parseInt(parts[0]) * 60 + parseInt(parts[1]);
+      } else {
+        // Seconds format or invalid
+        durationInSeconds = parseInt(item.duration) || 0;
+      }
+    }
+    
+    if (durationInSeconds > 0) {
+      progressSpan.textContent = `0:00/${formatTime(durationInSeconds)}`;
+      // Save the duration for future use
+      saveEpisodeProgress(item.url, 0, durationInSeconds);
+    } else {
+      // If no duration in RSS, try to get it from MP3 metadata
+      progressSpan.textContent = '0:00/--:--';
+      const audio = new Audio();
+      audio.preload = 'metadata';  // Only load metadata to get duration
+      audio.src = item.url;
+
+      // Load duration when metadata is loaded
+      audio.addEventListener('loadedmetadata', () => {
+        if (audio.duration && !isNaN(audio.duration) && audio.duration > 0) {
+          const totalTime = formatTime(audio.duration);
+          const currentTime = formatTime(0);  // Start at 0
+          progressSpan.textContent = `${currentTime}/${totalTime}`;
+          
+          // Save the duration for future use
+          saveEpisodeProgress(item.url, 0, audio.duration);
+        }
+      });
+
+      // Handle case where metadata loading fails
+      audio.addEventListener('error', () => {
+        progressSpan.textContent = '0:00/--:--';
+      });
+    }
     
     const dateSpan = document.createElement('span');
     dateSpan.className = 'audio-date';
@@ -70,24 +115,6 @@ function createEpisodeElement(item, feedUrl) {
   episodeDiv.appendChild(contentDiv);
   episodeDiv.appendChild(createMarkPlayedButton(item.url, item.title, feedUrl));
   
-  // Create audio element for duration and progress tracking
-  const audio = new Audio();
-  audio.preload = 'metadata';  // Only load metadata to get duration
-  audio.src = item.url;
-
-  // Load duration when metadata is loaded
-  audio.addEventListener('loadedmetadata', () => {
-    const totalTime = formatTime(audio.duration);
-    const currentTime = formatTime(0);  // Start at 0
-    const progressSpan = episodeDiv.querySelector('.audio-progress');
-    if (progressSpan) {
-      progressSpan.textContent = `${currentTime}/${totalTime}`;
-    }
-    
-    // Save the duration for future use
-    saveEpisodeProgress(item.url, 0, audio.duration);
-  });
-
   // Load saved progress if available
   chrome.storage.local.get('episodeProgress', (data) => {
     const progress = data.episodeProgress?.[item.url];
@@ -399,7 +426,10 @@ function initializeStandaloneFeatures() {
             const refreshedItems = Array.from(result.xmlDoc.querySelectorAll('item')).map(item => ({
               title: item.querySelector('title')?.textContent || 'Untitled',
               url: item.querySelector('enclosure')?.getAttribute('url') || '',
-              date: item.querySelector('pubDate')?.textContent || ''
+              date: item.querySelector('pubDate')?.textContent || '',
+              duration: item.querySelector('itunes\\:duration')?.textContent || 
+                       item.querySelector('duration')?.textContent || '',  // Try both iTunes and standard duration tags
+              length: item.querySelector('enclosure')?.getAttribute('length') || ''  // Get file size in bytes
             })).filter(item => item.url);
 
             // Load episodes using our new function
@@ -934,7 +964,10 @@ function initializeExtensionFeatures() {
         const podcastItems = Array.from(xmlDoc.querySelectorAll('item')).map(item => ({
           title: item.querySelector('title')?.textContent || 'Untitled',
           url: item.querySelector('enclosure')?.getAttribute('url') || '',
-          date: item.querySelector('pubDate')?.textContent || ''
+          date: item.querySelector('pubDate')?.textContent || '',
+          duration: item.querySelector('itunes\\:duration')?.textContent || 
+                   item.querySelector('duration')?.textContent || '',  // Try both iTunes and standard duration tags
+          length: item.querySelector('enclosure')?.getAttribute('length') || ''  // Get file size in bytes
         })).filter(item => item.url);
 
         // Load initial episodes
@@ -1060,7 +1093,9 @@ function initializeExtensionFeatures() {
               const refreshedItems = Array.from(result.xmlDoc.querySelectorAll('item')).map(item => ({
                 title: item.querySelector('title')?.textContent || 'Untitled',
                 url: item.querySelector('enclosure')?.getAttribute('url') || '',
-                date: item.querySelector('pubDate')?.textContent || ''
+                date: item.querySelector('pubDate')?.textContent || '',
+                duration: item.querySelector('itunes\\:duration')?.textContent || 
+                         item.querySelector('duration')?.textContent || ''  // Try both iTunes and standard duration tags
               })).filter(item => item.url);
 
               // Load episodes using our new function
