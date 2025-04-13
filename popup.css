@@ -787,34 +787,32 @@ audio::-webkit-media-controls-toggle-closed-captions-button {
 .mark-played-checkbox {
   appearance: none;
   -webkit-appearance: none;
-  width: 16px;
-  height: 16px;
-  border: 2px solid #666;
+  width: 14px;
+  height: 14px;
+  border: 1px solid #ccc;
   border-radius: 3px;
-  margin: 0;
   cursor: pointer;
   position: relative;
-  background: white;
-  transition: all 0.2s ease;
+  background: transparent;
+  margin: 0;  /* Reset any default margins */
+  padding: 0;  /* Reset any default padding */
+  box-sizing: border-box;  /* Include border in size calculation */
 }
 
 .mark-played-checkbox:checked {
-  background: #4CAF50;
-  border-color: #4CAF50;
+  background: #666;
+  border-color: #666;
 }
 
 .mark-played-checkbox:checked::after {
-  content: '';
+  content: '✓';
   position: absolute;
-  left: 4px;
-  top: 1px;
-  width: 5px;
-  height: 9px;
-  border: solid white;
-  border-width: 0 2px 2px 0;
-  transform: rotate(45deg);
+  color: white;
+  font-size: 11px;
+  left: 2px;
+  top: 0;
 }
 
 .mark-played-checkbox:hover {
-  border-color: #4CAF50;
+  border-color: #999;
 } 
