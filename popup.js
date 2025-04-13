@@ -631,6 +631,22 @@ function createMarkPlayedButton(audioUrl, title, feedUrl) {
     const feedEpisodes = playedEpisodes[feedUrl] || [];
     checkbox.checked = feedEpisodes.includes(audioUrl);
     checkbox.title = checkbox.checked ? 'Mark as unplayed' : 'Mark as played';
+    
+    // Apply initial visual state after a short delay to ensure DOM is ready
+    setTimeout(() => {
+      const episodeElement = container.closest('.audio-item');
+      if (episodeElement) {
+        const titleElement = episodeElement.querySelector('.audio-title');
+        const infoElement = episodeElement.querySelector('.audio-info');
+        const playButton = episodeElement.querySelector('.audio-control');
+        
+        if (checkbox.checked) {
+          titleElement?.classList.add('played');
+          infoElement?.classList.add('played');
+          playButton?.classList.add('played');
+        }
+      }
+    }, 0);
   });
 
   checkbox.addEventListener('change', async () => {
@@ -639,12 +655,31 @@ function createMarkPlayedButton(audioUrl, title, feedUrl) {
     const playedEpisodes = data.playedEpisodes || {};
     const feedEpisodes = playedEpisodes[feedUrl] || [];
     
+    // Find the episode elements
+    const episodeElement = container.closest('.audio-item');
+    const titleElement = episodeElement?.querySelector('.audio-title');
+    const infoElement = episodeElement?.querySelector('.audio-info');
+    const playButton = episodeElement?.querySelector('.audio-control');
+    
     if (checkbox.checked) {
       // Mark as played
       checkbox.title = 'Mark as unplayed';
       if (!feedEpisodes.includes(audioUrl)) {
         feedEpisodes.push(audioUrl);
       }
+      
+      // Apply visual feedback
+      titleElement?.classList.add('played');
+      infoElement?.classList.add('played');
+      playButton?.classList.add('played');
+      
+      // If this episode is currently playing, stop it
+      if (player.src === audioUrl) {
+        player.pause();
+        playButton.textContent = '⏵';
+        currentlyPlayingUrl = null;
+      }
+      
     } else {
       // Mark as unplayed
       checkbox.title = 'Mark as played';
@@ -652,6 +687,11 @@ function createMarkPlayedButton(audioUrl, title, feedUrl) {
       if (index !== -1) {
         feedEpisodes.splice(index, 1);
       }
+      
+      // Remove visual feedback
+      titleElement?.classList.remove('played');
+      infoElement?.classList.remove('played');
+      playButton?.classList.remove('played');
     }
     
     // Update storage
@@ -742,6 +782,11 @@ function initializeExtensionFeatures() {
 
     playBtn.addEventListener('click', async (e) => {
       e.stopPropagation();
+      
+      // Don't allow playback if marked as played
+      if (playBtn.classList.contains('played')) {
+        return;
+      }
       
       // Stop other episodes and reset their buttons
       const allPlayBtns = document.querySelectorAll('.audio-control:not(.mark-played)');

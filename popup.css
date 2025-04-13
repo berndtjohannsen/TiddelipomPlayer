@@ -794,9 +794,9 @@ audio::-webkit-media-controls-toggle-closed-captions-button {
   cursor: pointer;
   position: relative;
   background: transparent;
-  margin: 0;  /* Reset any default margins */
-  padding: 0;  /* Reset any default padding */
-  box-sizing: border-box;  /* Include border in size calculation */
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
 }
 
 .mark-played-checkbox:checked {
@@ -815,4 +815,22 @@ audio::-webkit-media-controls-toggle-closed-captions-button {
 
 .mark-played-checkbox:hover {
   border-color: #999;
+}
+
+.audio-title.played {
+  color: #999;
+  text-decoration: line-through;
+}
+
+.audio-info.played {
+  color: #999;
+}
+
+.audio-control.played {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.episode-info.played {
+  color: #999;
 } 
