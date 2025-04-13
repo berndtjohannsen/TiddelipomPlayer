@@ -775,4 +775,46 @@ audio::-webkit-media-controls-toggle-closed-captions-button {
 .podcast-icon:hover {
   background-color: #f0f0f0;
   color: #333;
+}
+
+/* Mark as played checkbox styling */
+.mark-played-container {
+  display: flex;
+  align-items: center;
+  margin-left: 8px;
+}
+
+.mark-played-checkbox {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border: 2px solid #666;
+  border-radius: 3px;
+  margin: 0;
+  cursor: pointer;
+  position: relative;
+  background: white;
+  transition: all 0.2s ease;
+}
+
+.mark-played-checkbox:checked {
+  background: #4CAF50;
+  border-color: #4CAF50;
+}
+
+.mark-played-checkbox:checked::after {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 1px;
+  width: 5px;
+  height: 9px;
+  border: solid white;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.mark-played-checkbox:hover {
+  border-color: #4CAF50;
 } 

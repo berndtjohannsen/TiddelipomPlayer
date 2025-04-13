@@ -617,40 +617,37 @@ function initializeStandaloneFeatures() {
 
 // Function to create mark played button
 function createMarkPlayedButton(audioUrl, title, feedUrl) {
-  const button = document.createElement('button');
-  button.className = 'audio-control mark-played';
-  button.textContent = '☐';
-  button.title = 'Mark as played';
+  const container = document.createElement('div');
+  container.className = 'mark-played-container';
+  
+  const checkbox = document.createElement('input');
+  checkbox.type = 'checkbox';
+  checkbox.className = 'mark-played-checkbox';
+  checkbox.title = 'Mark as played';
   
   // Check if episode is already marked as played
   chrome.storage.local.get('playedEpisodes', (data) => {
     const playedEpisodes = data.playedEpisodes || {};
     const feedEpisodes = playedEpisodes[feedUrl] || [];
-    if (feedEpisodes.includes(audioUrl)) {
-      button.textContent = '☑';
-      button.title = 'Mark as unplayed';
-    }
+    checkbox.checked = feedEpisodes.includes(audioUrl);
+    checkbox.title = checkbox.checked ? 'Mark as unplayed' : 'Mark as played';
   });
 
-  button.addEventListener('click', async (e) => {
-    e.stopPropagation();
-    
+  checkbox.addEventListener('change', async () => {
     // Get current played episodes
     const data = await chrome.storage.local.get('playedEpisodes');
     const playedEpisodes = data.playedEpisodes || {};
     const feedEpisodes = playedEpisodes[feedUrl] || [];
     
-    if (button.textContent === '☐') {
+    if (checkbox.checked) {
       // Mark as played
-      button.textContent = '☑';
-      button.title = 'Mark as unplayed';
+      checkbox.title = 'Mark as unplayed';
       if (!feedEpisodes.includes(audioUrl)) {
         feedEpisodes.push(audioUrl);
       }
     } else {
       // Mark as unplayed
-      button.textContent = '☐';
-      button.title = 'Mark as played';
+      checkbox.title = 'Mark as played';
       const index = feedEpisodes.indexOf(audioUrl);
       if (index !== -1) {
         feedEpisodes.splice(index, 1);
@@ -662,7 +659,8 @@ function createMarkPlayedButton(audioUrl, title, feedUrl) {
     await chrome.storage.local.set({ playedEpisodes });
   });
 
-  return button;
+  container.appendChild(checkbox);
+  return container;
 }
 
 function initializeExtensionFeatures() {
